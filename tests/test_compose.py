@@ -8,8 +8,8 @@ from dr_graph import (
     graph,
     inline_subgraph,
     node,
-    prefixed_node_id,
 )
+from dr_graph.compose import prefixed_node_id
 
 
 def _encdec_subgraph():

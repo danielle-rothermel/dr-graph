@@ -1,11 +1,7 @@
-"""Hashable treatment-description graphs plus a pure interpreter."""
+"""Hashable computation-graph specs plus a pure, deterministic interpreter."""
 
 from dr_graph.builders import as_binding_ref, graph, node
-from dr_graph.compose import (
-    DEFAULT_SUBGRAPH_SEPARATOR,
-    inline_subgraph,
-    prefixed_node_id,
-)
+from dr_graph.compose import inline_subgraph
 from dr_graph.errors import (
     CompletedNodeError,
     GraphExecutionError,
@@ -19,13 +15,10 @@ from dr_graph.execution import (
     resolve_node_inputs,
 )
 from dr_graph.hashing import (
-    GRAPH_DIGEST_LENGTH,
     canonical_graph_payload,
     graph_digest,
 )
 from dr_graph.refs import (
-    EXTERNAL_NAMESPACE,
-    REF_SEPARATOR,
     BindingRef,
     BindingSource,
 )
@@ -40,24 +33,15 @@ from dr_graph.results import (
     TerminalError,
 )
 from dr_graph.spec import (
-    DEFAULT_FIELD_TYPE,
     FieldRole,
     FieldSpec,
     GraphSpec,
     NodeConfig,
     NodeSpec,
 )
-from dr_graph.validation import (
-    external_binding_fields,
-    validate_external_bindings,
-)
+from dr_graph.validation import validate_external_bindings
 
 __all__ = [
-    "DEFAULT_FIELD_TYPE",
-    "DEFAULT_SUBGRAPH_SEPARATOR",
-    "EXTERNAL_NAMESPACE",
-    "GRAPH_DIGEST_LENGTH",
-    "REF_SEPARATOR",
     "BindingRef",
     "BindingSource",
     "ClassifiedFailure",
@@ -82,12 +66,10 @@ __all__ = [
     "as_binding_ref",
     "canonical_graph_payload",
     "execute_graph",
-    "external_binding_fields",
     "graph",
     "graph_digest",
     "inline_subgraph",
     "node",
-    "prefixed_node_id",
     "resolve_node_inputs",
     "validate_external_bindings",
 ]

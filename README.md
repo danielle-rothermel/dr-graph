@@ -1,12 +1,13 @@
 # dr-graph
 
-Hashable treatment-description graphs plus a pure, deterministic
+Hashable computation-graph specs plus a pure, deterministic
 interpreter. Not a workflow engine.
 
 The rule this library exists to serve: **whatever is searched over must be
 data; whatever does the searching is code.** Graph specs are the
-searched-over layer — experiment conditions, optimizer genomes. Optimizers
-and durable workflows are ordinary code that read and write these specs.
+searched-over layer — the motivating use case is experiment conditions and
+optimizer genomes. Optimizers and durable workflows are ordinary code that
+read and write these specs.
 
 ## What it provides
 
