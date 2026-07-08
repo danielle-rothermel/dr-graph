@@ -162,10 +162,8 @@ class NodeConfig(BaseModel):
     fields: tuple[FieldSpec, ...] = ()
     input_bindings: dict[str, BindingRef] = Field(default_factory=dict)
     output_field: StrictStr
-    # Included in graph_digest via GraphSpec.model_dump; keep payloads small
-    # until schema freeze adds explicit size/type constraints.
+    # Included in graph_digest via GraphSpec.model_dump; keep payloads small.
     parameters: dict[str, Any] = Field(default_factory=dict)
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def input_fields(self) -> tuple[FieldSpec, ...]:
         return tuple(

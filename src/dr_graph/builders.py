@@ -1,7 +1,7 @@
 """Neutral spec-assembly helpers.
 
 These cover the common case — bindings, one declared output field, open
-metadata — without any prompt or provider awareness. Domain-aware builders
+parameters — without any prompt or provider awareness. Domain-aware builders
 belong app-side.
 """
 
@@ -38,7 +38,6 @@ def node(  # noqa: PLR0913 -- the spec surface, not incidental knobs
     bindings: Mapping[str, str | BindingRef] | None = None,
     fields: Sequence[FieldSpec] | None = None,
     parameters: Mapping[str, Any] | None = None,
-    metadata: Mapping[str, Any] | None = None,
 ) -> NodeSpec:
     input_bindings = {
         name: as_binding_ref(ref)
@@ -62,7 +61,6 @@ def node(  # noqa: PLR0913 -- the spec surface, not incidental knobs
                 input_bindings=input_bindings,
                 output_field=output_field,
                 parameters=dict(parameters or {}),
-                metadata=dict(metadata or {}),
             ),
         }
     )

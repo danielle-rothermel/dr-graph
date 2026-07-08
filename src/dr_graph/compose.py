@@ -106,7 +106,6 @@ def inline_subgraph(
                         input_bindings=input_bindings,
                         output_field=node.config.output_field,
                         parameters=dict(node.config.parameters),
-                        metadata=dict(node.config.metadata),
                     ),
                 }
             )

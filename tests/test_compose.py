@@ -107,7 +107,7 @@ def test_inline_subgraph_rejects_bad_prefix_and_separator() -> None:
         inline_subgraph(_encdec_subgraph(), prefix="ok", separator=".")
 
 
-def test_inline_subgraph_preserves_ops_and_metadata() -> None:
+def test_inline_subgraph_preserves_ops_and_parameters() -> None:
     sub = graph(
         [
             node(
@@ -115,13 +115,11 @@ def test_inline_subgraph_preserves_ops_and_metadata() -> None:
                 op="tool_call",
                 bindings={"code": "task.code"},
                 output_field="score",
-                parameters={"threshold": 0.5},
-                metadata={"note": "keep"},
+                parameters={"threshold": 0.5, "note": "keep"},
             ),
         ],
         terminal="score",
     )
     (inlined,) = inline_subgraph(sub, prefix="s")
     assert inlined.op == "tool_call"
-    assert inlined.config.parameters == {"threshold": 0.5}
-    assert inlined.config.metadata == {"note": "keep"}
+    assert inlined.config.parameters == {"threshold": 0.5, "note": "keep"}
