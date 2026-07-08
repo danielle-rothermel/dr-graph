@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dr_serialize import sha256_json_digest
 
-from dr_graph.models import GraphSpec  # noqa: TC001
+if TYPE_CHECKING:
+    from dr_graph.models import GraphSpec
 
 GRAPH_DIGEST_LENGTH = 16
 
