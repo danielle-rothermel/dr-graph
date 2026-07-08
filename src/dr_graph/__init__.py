@@ -1,10 +1,13 @@
-"""Hashable treatment-description graphs plus a pure interpreter."""
+"""Hashable computation-graph specs plus a pure, deterministic interpreter."""
 
 from dr_graph.builders import as_binding_ref, graph, node
-from dr_graph.compose import (
-    DEFAULT_SUBGRAPH_SEPARATOR,
-    inline_subgraph,
-    prefixed_node_id,
+from dr_graph.compose import inline_subgraph
+from dr_graph.errors import (
+    CompletedNodeError,
+    GraphExecutionError,
+    GraphValidationError,
+    InputResolutionError,
+    NodeExecutionError,
 )
 from dr_graph.execution import (
     RunNode,
@@ -12,47 +15,33 @@ from dr_graph.execution import (
     resolve_node_inputs,
 )
 from dr_graph.hashing import (
-    GRAPH_DIGEST_LENGTH,
     canonical_graph_payload,
     graph_digest,
 )
-from dr_graph.models import (
-    DEFAULT_EXTERNAL_NAMESPACE,
-    DEFAULT_FIELD_TYPE,
-    EXTERNAL_NAMESPACE_CONTEXT_KEY,
-    REF_SEPARATOR,
+from dr_graph.refs import (
     BindingRef,
     BindingSource,
+)
+from dr_graph.results import (
     ClassifiedFailure,
-    CompletedNodeError,
-    FieldRole,
-    FieldSpec,
-    GraphExecutionError,
     GraphRunResult,
     GraphRunStatus,
-    GraphSpec,
-    GraphValidationError,
-    InputResolutionError,
-    NodeConfig,
     NodeError,
-    NodeExecutionError,
     NodeOutcome,
     NodeOutcomeStatus,
     NodeOutput,
-    NodeSpec,
     TerminalError,
-    external_binding_fields,
-    external_namespaces,
-    validate_external_bindings,
 )
+from dr_graph.spec import (
+    FieldRole,
+    FieldSpec,
+    GraphSpec,
+    NodeConfig,
+    NodeSpec,
+)
+from dr_graph.validation import validate_external_bindings
 
 __all__ = [
-    "DEFAULT_EXTERNAL_NAMESPACE",
-    "DEFAULT_FIELD_TYPE",
-    "DEFAULT_SUBGRAPH_SEPARATOR",
-    "EXTERNAL_NAMESPACE_CONTEXT_KEY",
-    "GRAPH_DIGEST_LENGTH",
-    "REF_SEPARATOR",
     "BindingRef",
     "BindingSource",
     "ClassifiedFailure",
@@ -77,13 +66,10 @@ __all__ = [
     "as_binding_ref",
     "canonical_graph_payload",
     "execute_graph",
-    "external_binding_fields",
-    "external_namespaces",
     "graph",
     "graph_digest",
     "inline_subgraph",
     "node",
-    "prefixed_node_id",
     "resolve_node_inputs",
     "validate_external_bindings",
 ]

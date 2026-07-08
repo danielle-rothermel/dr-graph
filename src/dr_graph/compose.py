@@ -12,17 +12,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dr_graph.builders import as_binding_ref
-from dr_graph.models import (
-    DEFAULT_EXTERNAL_NAMESPACE,
-    EXTERNAL_NAMESPACE_CONTEXT_KEY,
-    REF_SEPARATOR,
-    BindingRef,
-    BindingSource,
-    GraphSpec,
-    NodeConfig,
-    NodeSpec,
-    external_binding_fields,
-)
+from dr_graph.refs import REF_SEPARATOR, BindingRef, BindingSource
+from dr_graph.spec import GraphSpec, NodeConfig, NodeSpec
+from dr_graph.validation import external_binding_fields
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -45,7 +37,6 @@ def inline_subgraph(
     prefix: str,
     bindings: Mapping[str, str | BindingRef] | None = None,
     separator: str = DEFAULT_SUBGRAPH_SEPARATOR,
-    external_namespace: str = DEFAULT_EXTERNAL_NAMESPACE,
 ) -> tuple[NodeSpec, ...]:
     """Return the subgraph's nodes renamed and rewired for a parent graph.
 
@@ -64,7 +55,7 @@ def inline_subgraph(
             f"contain {REF_SEPARATOR!r}"
         )
     remapped = {
-        name: as_binding_ref(ref, external_namespace=external_namespace)
+        name: as_binding_ref(ref)
         for name, ref in (bindings or {}).items()
     }
     unknown = sorted(set(remapped) - external_binding_fields(subgraph))
@@ -74,7 +65,6 @@ def inline_subgraph(
             f"binding(s) {unknown_list} are not external inputs "
             "of the subgraph"
         )
-    context = {EXTERNAL_NAMESPACE_CONTEXT_KEY: external_namespace}
     nodes: list[NodeSpec] = []
     for node in subgraph.nodes:
         input_bindings: dict[str, BindingRef] = {}
@@ -94,8 +84,7 @@ def inline_subgraph(
                         separator=separator,
                     ),
                     "field": ref.field,
-                },
-                context=context,
+                }
             )
         nodes.append(
             NodeSpec.model_validate(
@@ -111,10 +100,8 @@ def inline_subgraph(
                         input_bindings=input_bindings,
                         output_field=node.config.output_field,
                         parameters=dict(node.config.parameters),
-                        metadata=dict(node.config.metadata),
                     ),
-                },
-                context=context,
+                }
             )
         )
     return tuple(nodes)

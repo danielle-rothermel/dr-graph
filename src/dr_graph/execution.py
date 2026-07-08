@@ -5,20 +5,21 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from dr_graph.models import (
-    BindingSource,
+from dr_graph.errors import (
     CompletedNodeError,
-    GraphRunResult,
-    GraphRunStatus,
-    GraphSpec,
     InputResolutionError,
     NodeExecutionError,
+)
+from dr_graph.refs import BindingSource
+from dr_graph.results import (
+    GraphRunResult,
+    GraphRunStatus,
     NodeOutcome,
     NodeOutcomeStatus,
     NodeOutput,
-    NodeSpec,
     TerminalError,
 )
+from dr_graph.spec import GraphSpec, NodeSpec
 
 type RunNode = Callable[
     [NodeSpec, Mapping[str, Any]],
@@ -59,7 +60,7 @@ def execute_graph(
         try:
             node_inputs = resolve_node_inputs(
                 node=node,
-                task_inputs=inputs,
+                inputs=inputs,
                 outcomes=outcomes,
                 graph=graph,
             )
@@ -90,19 +91,19 @@ def execute_graph(
 def resolve_node_inputs(
     *,
     node: NodeSpec,
-    task_inputs: Mapping[str, Any],
+    inputs: Mapping[str, Any],
     outcomes: Mapping[str, NodeOutcome],
     graph: GraphSpec,
 ) -> dict[str, Any]:
     resolved: dict[str, Any] = {}
     for field_name, ref in node.config.input_bindings.items():
         if ref.source is BindingSource.EXTERNAL:
-            if ref.field not in task_inputs:
+            if ref.field is None or ref.field not in inputs:
                 raise InputResolutionError(
                     f"missing external input {ref.field!r} "
                     f"for node {node.id!r}"
                 )
-            resolved[field_name] = task_inputs[ref.field]
+            resolved[field_name] = inputs[ref.field]
             continue
 
         if ref.node_id is None:

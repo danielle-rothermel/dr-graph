@@ -20,13 +20,13 @@ def test_node_derives_fields_from_bindings_and_output() -> None:
         op="llm_call",
         bindings={"prompt": "task.prompt"},
         output_field="description",
-        metadata={"user_prompt_template": "{prompt}"},
+        parameters={"user_prompt_template": "{prompt}"},
     )
     assert spec.op == "llm_call"
     assert [f.name for f in spec.config.input_fields()] == ["prompt"]
     assert [f.name for f in spec.config.output_fields()] == ["description"]
     assert spec.config.input_bindings["prompt"].ref == "task.prompt"
-    assert spec.config.metadata == {"user_prompt_template": "{prompt}"}
+    assert spec.config.parameters == {"user_prompt_template": "{prompt}"}
 
 
 def test_node_accepts_open_op_strings() -> None:
