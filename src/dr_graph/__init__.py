@@ -17,9 +17,8 @@ from dr_graph.hashing import (
     graph_digest,
 )
 from dr_graph.models import (
-    DEFAULT_EXTERNAL_NAMESPACE,
     DEFAULT_FIELD_TYPE,
-    EXTERNAL_NAMESPACE_CONTEXT_KEY,
+    EXTERNAL_NAMESPACE,
     REF_SEPARATOR,
     BindingRef,
     BindingSource,
@@ -42,15 +41,13 @@ from dr_graph.models import (
     NodeSpec,
     TerminalError,
     external_binding_fields,
-    external_namespaces,
     validate_external_bindings,
 )
 
 __all__ = [
-    "DEFAULT_EXTERNAL_NAMESPACE",
     "DEFAULT_FIELD_TYPE",
     "DEFAULT_SUBGRAPH_SEPARATOR",
-    "EXTERNAL_NAMESPACE_CONTEXT_KEY",
+    "EXTERNAL_NAMESPACE",
     "GRAPH_DIGEST_LENGTH",
     "REF_SEPARATOR",
     "BindingRef",
@@ -78,7 +75,6 @@ __all__ = [
     "canonical_graph_payload",
     "execute_graph",
     "external_binding_fields",
-    "external_namespaces",
     "graph",
     "graph_digest",
     "inline_subgraph",

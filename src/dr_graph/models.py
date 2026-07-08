@@ -1,53 +1,35 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Mapping
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     StrictStr,
-    ValidationInfo,
     model_serializer,
     model_validator,
 )
 
-DEFAULT_EXTERNAL_NAMESPACE = "task"
+EXTERNAL_NAMESPACE = "task"
 REF_SEPARATOR = "."
 DEFAULT_FIELD_TYPE = "str"
-
-EXTERNAL_NAMESPACE_CONTEXT_KEY = "external_namespace"
-
-
-def context_external_namespace(info: ValidationInfo) -> str:
-    """Resolve the reserved external-input namespace for a validation run.
-
-    Pass ``context={"external_namespace": ...}`` to ``model_validate`` to
-    parse specs written against a namespace other than the default
-    ``"task"``. The namespace is digest-affecting: it appears in the
-    serialized ref strings.
-    """
-    context = info.context
-    if isinstance(context, Mapping):
-        namespace = context.get(EXTERNAL_NAMESPACE_CONTEXT_KEY)
-        if isinstance(namespace, str) and namespace:
-            return namespace
-    return DEFAULT_EXTERNAL_NAMESPACE
 
 
 def validate_ref_identifier(
     identifier: str,
     *,
     kind: str,
-    reserved: str = DEFAULT_EXTERNAL_NAMESPACE,
 ) -> None:
     if REF_SEPARATOR in identifier:
         raise ValueError(
             f"{kind} {identifier!r} cannot contain {REF_SEPARATOR!r}"
         )
-    if identifier == reserved:
+    if identifier == EXTERNAL_NAMESPACE:
         raise ValueError(f"{kind} {identifier!r} is reserved")
 
 
@@ -103,25 +85,22 @@ class BindingRef(BaseModel):
     source: BindingSource
     field: StrictStr | None = None
     node_id: StrictStr | None = None
-    namespace: StrictStr | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def parse_ref(cls, value: Any, info: ValidationInfo) -> Any:
+    def parse_ref(cls, value: Any) -> Any:
         if not isinstance(value, str):
             return value
-        namespace = context_external_namespace(info)
         head, separator, tail = value.partition(REF_SEPARATOR)
         if not separator:
             return {
                 "source": BindingSource.NODE,
                 "node_id": head,
             }
-        if head == namespace:
+        if head == EXTERNAL_NAMESPACE:
             return {
                 "source": BindingSource.EXTERNAL,
                 "field": tail,
-                "namespace": namespace,
             }
         return {
             "source": BindingSource.NODE,
@@ -130,7 +109,7 @@ class BindingRef(BaseModel):
         }
 
     @model_validator(mode="after")
-    def validate_shape(self, info: ValidationInfo) -> BindingRef:
+    def validate_shape(self) -> BindingRef:
         if self.source is BindingSource.EXTERNAL:
             if self.node_id is not None:
                 raise ValueError(
@@ -138,27 +117,10 @@ class BindingRef(BaseModel):
                 )
             if not self.field:
                 raise ValueError("external binding refs require a field")
-            if self.namespace is None:
-                self.namespace = context_external_namespace(info)
-            if not self.namespace:
-                raise ValueError(
-                    "external binding refs require a non-empty namespace"
-                )
-            if REF_SEPARATOR in self.namespace:
-                raise ValueError(
-                    f"namespace {self.namespace!r} cannot contain "
-                    f"{REF_SEPARATOR!r}"
-                )
             return self
-        if self.namespace is not None:
-            raise ValueError("node binding refs cannot include namespace")
         if not self.node_id:
             raise ValueError("node binding refs require node_id")
-        validate_ref_identifier(
-            self.node_id,
-            kind="node id",
-            reserved=context_external_namespace(info),
-        )
+        validate_ref_identifier(self.node_id, kind="node id")
         if self.field is not None and not self.field:
             raise ValueError("node binding refs require a non-empty field")
         return self
@@ -170,7 +132,7 @@ class BindingRef(BaseModel):
     @property
     def ref(self) -> str:
         if self.source is BindingSource.EXTERNAL:
-            return f"{self.namespace}{REF_SEPARATOR}{self.field}"
+            return f"{EXTERNAL_NAMESPACE}{REF_SEPARATOR}{self.field}"
         if self.field is None:
             return str(self.node_id)
         return f"{self.node_id}{REF_SEPARATOR}{self.field}"
@@ -247,12 +209,8 @@ class NodeSpec(BaseModel):
     op: StrictStr = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_id(self, info: ValidationInfo) -> NodeSpec:
-        validate_ref_identifier(
-            self.id,
-            kind="node id",
-            reserved=context_external_namespace(info),
-        )
+    def validate_id(self) -> NodeSpec:
+        validate_ref_identifier(self.id, kind="node id")
         return self
 
     def dependencies(self) -> set[str]:
@@ -521,27 +479,7 @@ def validate_graph_spec(graph: GraphSpec) -> None:
     for node in graph.nodes:
         for ref in node.config.input_bindings.values():
             validate_binding_ref(ref, nodes_by_id)
-    namespaces = external_namespaces(graph)
-    if len(namespaces) > 1:
-        namespace_list = ", ".join(repr(name) for name in sorted(namespaces))
-        raise GraphValidationError(
-            f"graph mixes external namespaces: {namespace_list}"
-        )
-    for namespace in namespaces:
-        if namespace in nodes_by_id:
-            raise GraphValidationError(
-                f"node id {namespace!r} collides with the external namespace"
-            )
     validate_acyclic_graph(graph.nodes)
-
-
-def external_namespaces(graph: GraphSpec) -> frozenset[str]:
-    return frozenset(
-        ref.namespace
-        for node in graph.nodes
-        for ref in node.config.input_bindings.values()
-        if ref.source is BindingSource.EXTERNAL and ref.namespace is not None
-    )
 
 
 def external_binding_fields(graph: GraphSpec) -> frozenset[str]:

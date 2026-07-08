@@ -13,8 +13,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 from dr_graph.models import (
-    DEFAULT_EXTERNAL_NAMESPACE,
-    EXTERNAL_NAMESPACE_CONTEXT_KEY,
     BindingRef,
     FieldRole,
     FieldSpec,
@@ -26,15 +24,10 @@ from dr_graph.models import (
 
 def as_binding_ref(
     ref: str | BindingRef,
-    *,
-    external_namespace: str = DEFAULT_EXTERNAL_NAMESPACE,
 ) -> BindingRef:
     if isinstance(ref, BindingRef):
         return ref
-    return BindingRef.model_validate(
-        ref,
-        context={EXTERNAL_NAMESPACE_CONTEXT_KEY: external_namespace},
-    )
+    return BindingRef.model_validate(ref)
 
 
 def node(  # noqa: PLR0913 -- the spec surface, not incidental knobs
@@ -46,10 +39,9 @@ def node(  # noqa: PLR0913 -- the spec surface, not incidental knobs
     fields: Sequence[FieldSpec] | None = None,
     parameters: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
-    external_namespace: str = DEFAULT_EXTERNAL_NAMESPACE,
 ) -> NodeSpec:
     input_bindings = {
-        name: as_binding_ref(ref, external_namespace=external_namespace)
+        name: as_binding_ref(ref)
         for name, ref in (bindings or {}).items()
     }
     if fields is None:
@@ -72,8 +64,7 @@ def node(  # noqa: PLR0913 -- the spec surface, not incidental knobs
                 parameters=dict(parameters or {}),
                 metadata=dict(metadata or {}),
             ),
-        },
-        context={EXTERNAL_NAMESPACE_CONTEXT_KEY: external_namespace},
+        }
     )
 
 
@@ -81,12 +72,10 @@ def graph(
     nodes: Sequence[NodeSpec],
     *,
     terminal: str,
-    external_namespace: str = DEFAULT_EXTERNAL_NAMESPACE,
 ) -> GraphSpec:
     return GraphSpec.model_validate(
         {
             "nodes": tuple(nodes),
             "terminal_node_id": terminal,
-        },
-        context={EXTERNAL_NAMESPACE_CONTEXT_KEY: external_namespace},
+        }
     )
