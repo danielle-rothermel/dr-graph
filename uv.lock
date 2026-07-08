@@ -57,7 +57,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dr-serialize", git = "https://github.com/danielle-rothermel/dr-serialize?rev=a9c21b30addc6952511f044821285570ec9821d2" },
+    { name = "dr-serialize", git = "https://github.com/danielle-rothermel/dr-serialize?rev=ab17928c3b6f570996416454f0cc5d619add780d" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
@@ -72,7 +72,7 @@ dev = [
 [[package]]
 name = "dr-serialize"
 version = "0.1.0"
-source = { git = "https://github.com/danielle-rothermel/dr-serialize?rev=a9c21b30addc6952511f044821285570ec9821d2#a9c21b30addc6952511f044821285570ec9821d2" }
+source = { git = "https://github.com/danielle-rothermel/dr-serialize?rev=ab17928c3b6f570996416454f0cc5d619add780d#ab17928c3b6f570996416454f0cc5d619add780d" }
 dependencies = [
     { name = "pydantic" },
 ]
