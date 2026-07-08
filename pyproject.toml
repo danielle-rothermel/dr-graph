@@ -40,7 +40,7 @@ dev = [
 
 # Migration-time wiring: must become a git/PyPI pin before merge.
 [tool.uv.sources]
-dr-serialize = { git = "https://github.com/danielle-rothermel/dr-serialize", rev = "ab17928c3b6f570996416454f0cc5d619add780d" }
+dr-serialize = { git = "https://github.com/danielle-rothermel/dr-serialize", rev = "cfdf4496f1a5510d1788dba70f554300b39a3bca" }
 
 [tool.hatch.build.targets.sdist]
 only-include = ["src"]
