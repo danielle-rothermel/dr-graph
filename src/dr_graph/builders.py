@@ -12,14 +12,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-from dr_graph.models import (
-    BindingRef,
-    FieldRole,
-    FieldSpec,
-    GraphSpec,
-    NodeConfig,
-    NodeSpec,
-)
+from dr_graph.refs import BindingRef
+from dr_graph.spec import FieldRole, FieldSpec, GraphSpec, NodeConfig, NodeSpec
 
 
 def as_binding_ref(

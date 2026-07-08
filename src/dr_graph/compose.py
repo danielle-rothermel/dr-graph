@@ -12,15 +12,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dr_graph.builders import as_binding_ref
-from dr_graph.models import (
-    REF_SEPARATOR,
-    BindingRef,
-    BindingSource,
-    GraphSpec,
-    NodeConfig,
-    NodeSpec,
-    external_binding_fields,
-)
+from dr_graph.refs import REF_SEPARATOR, BindingRef, BindingSource
+from dr_graph.spec import GraphSpec, NodeConfig, NodeSpec
+from dr_graph.validation import external_binding_fields
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
