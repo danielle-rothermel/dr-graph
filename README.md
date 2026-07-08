@@ -9,6 +9,14 @@ searched-over layer — the motivating use case is experiment conditions and
 optimizer genomes. Optimizers and durable workflows are ordinary code that
 read and write these specs.
 
+## Ecosystem
+
+dr-graph defines hashable computation-graph specs plus a pure deterministic
+interpreter; graph specs are searched-over experiment treatments, with
+`graph_digest` as treatment identity. Neighbor repos are `dr-serialize`,
+`dr-providers`, `dr-platform`, `dr-code`, `whetstone-ai`, and `unitbench`.
+It depends on `dr-serialize`; `whetstone-ai` consumes it.
+
 ## What it provides
 
 - **Spec vocabulary** — `GraphSpec` (nodes + terminal node),
