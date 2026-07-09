@@ -38,9 +38,11 @@ dev = [
     "ty>=0.0.51",
 ]
 
-# Migration-time wiring: must become a git/PyPI pin before merge.
+# dr-serialize is not on PyPI; the source tracks main and uv.lock pins the
+# exact commit, matching the other dr-* consumers so shared resolves do not
+# hit conflicting-URL errors.
 [tool.uv.sources]
-dr-serialize = { git = "https://github.com/danielle-rothermel/dr-serialize", rev = "cfdf4496f1a5510d1788dba70f554300b39a3bca" }
+dr-serialize = { git = "https://github.com/danielle-rothermel/dr-serialize", branch = "main" }
 
 [tool.hatch.build.targets.sdist]
 only-include = ["src"]
