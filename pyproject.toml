@@ -1,7 +1,7 @@
 [project]
 name = "dr-graph"
 version = "0.1.0"
-description = "Hashable treatment-description graphs plus a pure, deterministic interpreter."
+description = "Hashable graph configs plus a pure, deterministic interpreter."
 readme = "README.md"
 license = "MIT"
 authors = [

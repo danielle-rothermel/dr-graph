@@ -12,6 +12,7 @@ from dr_graph import (
     NodeOutcomeStatus,
     TerminalError,
     execute_graph,
+    graph_hash,
 )
 from tests.support import _graph, _node, _output
 
@@ -26,6 +27,8 @@ def test_result_json_dump_is_persistable_shape() -> None:
     )
 
     assert result.model_dump(mode="json") == {
+        "graph_hash": graph_hash(graph),
+        "external_inputs": {},
         "status": "success",
         "outcomes": {
             "direct": {
@@ -40,6 +43,8 @@ def test_result_json_dump_is_persistable_shape() -> None:
         "terminal_node_id": "direct",
         "terminal_output": "ok",
         "terminal_error": None,
+        "attempt_evidence_refs": [],
+        "provenance": {},
     }
 
 
@@ -57,6 +62,8 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
     outcome = result.outcomes["direct"]
     assert outcome.error is not None
     assert result.model_dump(mode="json") == {
+        "graph_hash": graph_hash(graph),
+        "external_inputs": {},
         "status": "error",
         "outcomes": {
             "direct": {
@@ -91,13 +98,15 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
             },
             "blocked_by": [],
         },
+        "attempt_evidence_refs": [],
+        "provenance": {},
     }
 
 
 def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
     graph = _graph(
-        _node("encoder", bindings={"prompt": "task.prompt"}),
-        _node("decoder", bindings={"description": "encoder"}),
+        _node("encoder", input_sources={"prompt": "task.prompt"}),
+        _node("decoder", input_sources={"description": "encoder"}),
         terminal_node_id="decoder",
     )
 
@@ -110,6 +119,8 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
     )
 
     assert result.model_dump(mode="json") == {
+        "graph_hash": graph_hash(graph),
+        "external_inputs": {"prompt": "write f"},
         "status": "blocked",
         "outcomes": {
             "encoder": {
@@ -144,57 +155,28 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
             "error": None,
             "blocked_by": ["encoder"],
         },
+        "attempt_evidence_refs": [],
+        "provenance": {},
     }
 
 
-def test_partial_outcome_json_dump_is_persistable_shape() -> None:
-    graph = _graph(
-        _node("terminal"),
-        _node("bad"),
-        terminal_node_id="terminal",
-    )
+def _minimal_result_kwargs() -> dict[str, Any]:
+    return {"graph_hash": "0" * 64}
 
-    result = execute_graph(
-        graph=graph,
-        inputs={},
-        run_node=lambda node, inputs: (
-            _output("ok")
-            if node.id == "terminal"
-            else (_ for _ in ()).throw(RuntimeError("boom"))
-        ),
-    )
 
-    assert result.model_dump(mode="json") == {
-        "status": "partial",
-        "outcomes": {
-            "bad": {
-                "node_id": "bad",
-                "status": "error",
-                "output": None,
-                "error": {
-                    "error_type": (
-                        f"{RuntimeError.__module__}."
-                        f"{RuntimeError.__qualname__}"
-                    ),
-                    "message": "boom",
-                    "failure_class": None,
-                    "metadata": {},
-                },
-                "blocked_by": [],
-            },
-            "terminal": {
-                "node_id": "terminal",
-                "status": "success",
-                "output": {"values": {"output": "ok"}, "metadata": {}},
-                "error": None,
-                "blocked_by": [],
-            },
-        },
-        "execution_order": ["bad", "terminal"],
-        "terminal_node_id": "terminal",
-        "terminal_output": "ok",
-        "terminal_error": None,
-    }
+def test_partial_status_result_is_constructible_directly() -> None:
+    """PARTIAL is a valid Result status even though single-sink execution
+    does not currently produce it."""
+    outcome = NodeOutcome.success(node_id="direct", output=_output("ok"))
+    result = GraphRunResult(
+        **_minimal_result_kwargs(),
+        status=GraphRunStatus.PARTIAL,
+        outcomes={"direct": outcome},
+        execution_order=("direct",),
+        terminal_node_id="direct",
+        terminal_output="ok",
+    )
+    assert result.status is GraphRunStatus.PARTIAL
 
 
 def test_terminal_error_rejects_success_status() -> None:
@@ -212,6 +194,7 @@ def test_graph_run_result_rejects_mismatched_outcome_keys() -> None:
     )
     with pytest.raises(ValueError, match="does not match node_id"):
         GraphRunResult(
+            **_minimal_result_kwargs(),
             status=GraphRunStatus.SUCCESS,
             outcomes={"other": outcome},
             execution_order=("direct",),
@@ -226,6 +209,7 @@ def test_graph_run_result_rejects_conflicting_terminal_fields() -> None:
         match="both terminal_output and terminal_error",
     ):
         GraphRunResult(
+            **_minimal_result_kwargs(),
             status=GraphRunStatus.ERROR,
             outcomes={},
             execution_order=(),
@@ -418,6 +402,7 @@ def test_graph_run_result_rejects_invalid_terminal_shape(
 ) -> None:
     with pytest.raises(ValueError, match=match):
         GraphRunResult(
+            **_minimal_result_kwargs(),
             status=status,
             outcomes={},
             execution_order=(),

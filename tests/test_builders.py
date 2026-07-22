@@ -3,108 +3,110 @@ from __future__ import annotations
 import pytest
 
 from dr_graph import (
-    BindingRef,
     FieldRole,
-    FieldSpec,
     GraphRunStatus,
+    NodeFieldSpec,
+    NodeInputSourceRef,
     execute_graph,
     graph,
-    graph_digest,
+    graph_hash,
     node,
 )
 
 
-def test_node_derives_fields_from_bindings_and_output() -> None:
-    spec = node(
+def test_node_derives_fields_from_input_sources_and_output() -> None:
+    node_config = node(
         "encoder",
-        op="llm_call",
-        bindings={"prompt": "task.prompt"},
+        node_type="llm_call",
+        input_sources={"prompt": "task.prompt"},
         output_field="description",
-        parameters={"user_prompt_template": "{prompt}"},
+        variables={"user_prompt_template": "{prompt}"},
     )
-    assert spec.op == "llm_call"
-    assert [f.name for f in spec.config.input_fields()] == ["prompt"]
-    assert [f.name for f in spec.config.output_fields()] == ["description"]
-    assert spec.config.input_bindings["prompt"].ref == "task.prompt"
-    assert spec.config.parameters == {"user_prompt_template": "{prompt}"}
+    assert node_config.node_type == "llm_call"
+    assert [f.name for f in node_config.input_fields()] == ["prompt"]
+    assert [f.name for f in node_config.output_fields()] == ["description"]
+    assert node_config.input_sources["prompt"].ref == "task.prompt"
+    assert node_config.variables == {"user_prompt_template": "{prompt}"}
 
 
-def test_node_accepts_open_op_strings() -> None:
-    spec = node("tool", op="tool_call", output_field="output")
-    assert spec.op == "tool_call"
+def test_node_accepts_open_node_type_strings() -> None:
+    node_config = node("tool", node_type="tool_call", output_field="output")
+    assert node_config.node_type == "tool_call"
 
 
-def test_node_rejects_empty_op() -> None:
-    with pytest.raises(ValueError, match="op"):
-        node("tool", op="", output_field="output")
+def test_node_rejects_empty_node_type() -> None:
+    with pytest.raises(ValueError, match="node_type"):
+        node("tool", node_type="", output_field="output")
 
 
 def test_node_accepts_explicit_fields() -> None:
-    spec = node(
+    node_config = node(
         "scorer",
-        op="score",
-        bindings={"code": "decoder.code"},
+        node_type="score",
+        input_sources={"code": "decoder.code"},
         output_field="score",
         fields=(
-            FieldSpec(name="code", role=FieldRole.INPUT, type_name="code"),
-            FieldSpec(name="score", role=FieldRole.OUTPUT, type_name="float"),
+            NodeFieldSpec(name="code", role=FieldRole.INPUT, type_name="code"),
+            NodeFieldSpec(
+                name="score", role=FieldRole.OUTPUT, type_name="float"
+            ),
         ),
     )
-    assert spec.config.fields[0].type_name == "code"
-    assert spec.config.fields[1].type_name == "float"
+    assert node_config.fields[0].type_name == "code"
+    assert node_config.fields[1].type_name == "float"
 
 
-def test_node_accepts_prebuilt_binding_refs() -> None:
-    ref = BindingRef.model_validate("encoder.description")
-    spec = node(
+def test_node_accepts_prebuilt_input_source_refs() -> None:
+    ref = NodeInputSourceRef.model_validate("encoder.description")
+    node_config = node(
         "decoder",
-        op="llm_call",
-        bindings={"description": ref},
+        node_type="llm_call",
+        input_sources={"description": ref},
         output_field="code",
     )
-    assert spec.config.input_bindings["description"] is ref
+    assert node_config.input_sources["description"] is ref
 
 
-def test_graph_builder_matches_manual_spec_digest() -> None:
+def test_graph_builder_matches_manual_config_hash() -> None:
     built = graph(
         [
             node(
                 "encoder",
-                op="llm_call",
-                bindings={"prompt": "task.prompt"},
+                node_type="llm_call",
+                input_sources={"prompt": "task.prompt"},
                 output_field="description",
             ),
             node(
                 "decoder",
-                op="llm_call",
-                bindings={"description": "encoder.description"},
+                node_type="llm_call",
+                input_sources={"description": "encoder.description"},
                 output_field="code",
             ),
         ],
         terminal="decoder",
     )
     payload = built.model_dump(mode="json")
-    from dr_graph import GraphSpec
+    from dr_graph import GraphConfig
 
-    manual = GraphSpec.model_validate(payload)
-    assert graph_digest(built) == graph_digest(manual)
+    manual = GraphConfig.model_validate(payload)
+    assert graph_hash(built) == graph_hash(manual)
     assert built.terminal_node_id == "decoder"
 
 
 def test_built_graph_executes() -> None:
-    spec = graph(
+    config = graph(
         [
             node(
                 "direct",
-                op="llm_call",
-                bindings={"prompt": "task.prompt"},
+                node_type="llm_call",
+                input_sources={"prompt": "task.prompt"},
                 output_field="output",
             ),
         ],
         terminal="direct",
     )
     result = execute_graph(
-        graph=spec,
+        graph=config,
         inputs={"prompt": "hi"},
         run_node=lambda _node, inputs: {
             "values": {"output": inputs["prompt"].upper()}
@@ -117,6 +119,6 @@ def test_built_graph_executes() -> None:
 def test_graph_builder_validates_terminal() -> None:
     with pytest.raises(ValueError, match="not in graph"):
         graph(
-            [node("a", op="llm_call", output_field="output")],
+            [node("a", node_type="llm_call", output_field="output")],
             terminal="missing",
         )

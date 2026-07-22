@@ -190,14 +190,30 @@ class TerminalError(BaseModel):
 
 
 class GraphRunResult(BaseModel):
+    """Result for one Graph Run.
+
+    Carries Graph Run identity (``graph_hash``), the Graph External Inputs or
+    immutable references that fed the run, the terminal Outcome, per-Node
+    Outcomes and execution order, provenance, and provider-attempt evidence as
+    references only. It references — never duplicates — provider bodies held by
+    the enclosing Rollout Result, holds no Platform Stage state, and has no
+    separate authoritative persistence path.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
+    graph_hash: StrictStr
+    external_inputs: dict[str, Any] = Field(default_factory=dict)
     status: GraphRunStatus
     outcomes: dict[str, NodeOutcome]
     execution_order: tuple[StrictStr, ...]
     terminal_node_id: StrictStr
     terminal_output: Any | None = None
     terminal_error: TerminalError | None = None
+    # Provider Call Attempt records live on the enclosing Rollout Result; the
+    # Graph Run Result references them rather than duplicating provider bodies.
+    attempt_evidence_refs: tuple[StrictStr, ...] = ()
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_result(self) -> GraphRunResult:

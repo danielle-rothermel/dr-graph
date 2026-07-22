@@ -10,9 +10,9 @@ import pytest
 from dr_graph import (
     CompletedNodeError,
     GraphRunStatus,
+    NodeConfig,
     NodeOutcomeStatus,
     NodeOutput,
-    NodeSpec,
     execute_graph,
     graph,
     node,
@@ -24,14 +24,14 @@ def _encdec():
         [
             node(
                 "encoder",
-                op="llm_call",
-                bindings={"prompt": "task.prompt"},
+                node_type="llm_call",
+                input_sources={"prompt": "task.prompt"},
                 output_field="description",
             ),
             node(
                 "decoder",
-                op="llm_call",
-                bindings={"description": "encoder.description"},
+                node_type="llm_call",
+                input_sources={"description": "encoder.description"},
                 output_field="code",
             ),
         ],
@@ -39,17 +39,17 @@ def _encdec():
     )
 
 
-def test_completed_nodes_are_skipped_and_feed_bindings() -> None:
+def test_completed_nodes_are_skipped_and_feed_input_sources() -> None:
     invoked: list[str] = []
 
     def run_node(
-        node_spec: NodeSpec,
+        node_config: NodeConfig,
         inputs: Mapping[str, Any],
     ) -> dict[str, Any]:
-        invoked.append(node_spec.id)
+        invoked.append(node_config.node_id)
         return {
             "values": {
-                node_spec.config.output_field: f"new({inputs['description']})"
+                node_config.output_field: f"new({inputs['description']})"
             }
         }
 
@@ -73,8 +73,8 @@ def test_completed_accepts_node_output_instances() -> None:
     result = execute_graph(
         graph=_encdec(),
         inputs={},
-        run_node=lambda node_spec, inputs: {
-            "values": {node_spec.config.output_field: inputs["description"]}
+        run_node=lambda node_config, inputs: {
+            "values": {node_config.output_field: inputs["description"]}
         },
         completed={
             "encoder": NodeOutput(values={"description": "prior"}),
@@ -86,7 +86,7 @@ def test_completed_accepts_node_output_instances() -> None:
 
 def test_fully_completed_graph_runs_without_callback_calls() -> None:
     def run_node(
-        node_spec: NodeSpec,
+        node_config: NodeConfig,
         inputs: Mapping[str, Any],
     ) -> dict[str, Any]:
         raise AssertionError("run_node must not be called")
@@ -108,11 +108,11 @@ def test_completed_unknown_node_rejected_before_execution() -> None:
     invoked: list[str] = []
 
     def run_node(
-        node_spec: NodeSpec,
+        node_config: NodeConfig,
         inputs: Mapping[str, Any],
     ) -> dict[str, Any]:
-        invoked.append(node_spec.id)
-        return {"values": {node_spec.config.output_field: "x"}}
+        invoked.append(node_config.node_id)
+        return {"values": {node_config.output_field: "x"}}
 
     with pytest.raises(CompletedNodeError, match="not in the graph"):
         execute_graph(
@@ -129,7 +129,7 @@ def test_completed_output_missing_declared_field_rejected() -> None:
         execute_graph(
             graph=_encdec(),
             inputs={"prompt": "p"},
-            run_node=lambda node_spec, inputs: {"values": {}},
+            run_node=lambda node_config, inputs: {"values": {}},
             completed={"encoder": {"values": {"wrong_field": "d"}}},
         )
 
@@ -139,6 +139,6 @@ def test_completed_output_invalid_shape_rejected() -> None:
         execute_graph(
             graph=_encdec(),
             inputs={"prompt": "p"},
-            run_node=lambda node_spec, inputs: {"values": {}},
+            run_node=lambda node_config, inputs: {"values": {}},
             completed={"encoder": {"nonsense": True}},
         )
