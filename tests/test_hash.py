@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import math
+
+import pytest
+from dr_serialize import FiniteJsonError
+
 from dr_graph import (
+    FieldRole,
     GraphConfig,
+    NodeConfig,
+    NodeFieldSpec,
     graph_hash,
     validate_graph_external_inputs,
 )
@@ -12,6 +20,17 @@ from dr_graph.hashing import (
 from tests.support import _graph, _node
 
 HASH_HEX_LENGTH = 64
+
+
+def _graph_with_variable(value: object) -> GraphConfig:
+    node = NodeConfig(
+        node_id="direct",
+        node_type="llm_call",
+        fields=(NodeFieldSpec(name="output", role=FieldRole.OUTPUT),),
+        output_field="output",
+        variables={"x": value},
+    )
+    return _graph(node, terminal_node_id="direct")
 
 
 def test_graph_hash_is_full_64_char_lowercase_hex() -> None:
@@ -66,3 +85,30 @@ def test_graph_hash_changes_with_node_declaration_order() -> None:
     )
 
     assert graph_hash(first) != graph_hash(second)
+
+
+@pytest.mark.parametrize(
+    "non_finite",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_graph_hash_rejects_non_finite_variable(non_finite: float) -> None:
+    # Recursive validation must reject every non-finite Variable value before
+    # canonicalization: model_dump(mode="json") would silently coerce
+    # NaN/Inf to null, colliding distinct configs onto one graph_hash.
+    graph = _graph_with_variable(non_finite)
+    with pytest.raises(FiniteJsonError):
+        graph_hash(graph)
+
+
+def test_finite_variables_still_produce_distinct_hashes() -> None:
+    # Guardrail for the fix: valid finite/None Variable values are NOT rejected
+    # and remain distinguishable (None must not collide with a non-finite one).
+    none_hash = graph_hash(_graph_with_variable(None))
+    finite_hash = graph_hash(_graph_with_variable(1.5))
+
+    assert none_hash != finite_hash
+    assert not math.isnan(1.5)  # sanity: the finite value is genuinely finite
