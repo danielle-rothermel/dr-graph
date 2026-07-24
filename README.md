@@ -9,6 +9,12 @@ searched-over layer — the motivating use case is experiment conditions and
 optimizer genomes. Optimizers and durable workflows are ordinary code that
 read and write these configs.
 
+The [vocabulary sheet](https://danielle-rothermel.github.io/dr-graph/)
+(source: `.defs/vocab.html`) is the authoritative statement of the
+computation-graph contract this repo implements: the terms, the
+guarantees, what is in and out of scope, and the mapping from each term to
+the exported names.
+
 ## Ecosystem
 
 dr-graph defines the versioned, variable-bearing Graph Definition artifact,
