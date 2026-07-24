@@ -1,0 +1,42 @@
+# Tag-triggered PyPI publish via Trusted Publishing (OIDC, no API token).
+#
+# Manual prerequisite (one-time, before the first tag push): configure a
+# Trusted Publisher (a "pending publisher") on PyPI for the project `dr-graph`
+# pointing at this repository, this workflow file (release.yml), and the
+# `pypi` environment. Without it, the publish job's OIDC exchange will fail.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.1
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dr-graph
+    permissions:
+      id-token: write
+    steps:
+      - uses: astral-sh/setup-uv@v8.3.1
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - run: uv publish --trusted-publishing always
