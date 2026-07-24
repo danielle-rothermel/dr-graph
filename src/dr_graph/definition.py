@@ -21,7 +21,12 @@ from pydantic import (
 
 from dr_graph.errors import GraphValidationError
 from dr_graph.refs import NodeInputSourceRef, validate_ref_identifier
-from dr_graph.spec import GraphConfig, NodeConfig, NodeFieldSpec
+from dr_graph.spec import (
+    GraphConfig,
+    NodeConfig,
+    NodeFieldSpec,
+    validate_node_fields,
+)
 from dr_graph.validation import (
     topological_order_ids,
     validate_single_terminal_ids,
@@ -48,9 +53,21 @@ class NodeDefinition(BaseModel):
     output_field: StrictStr
     variable_names: frozenset[str] = frozenset()
 
+    def dependencies(self) -> set[str]:
+        return {
+            node_id
+            for ref in self.input_sources.values()
+            if (node_id := ref.dependency_node_id) is not None
+        }
+
     @model_validator(mode="after")
     def validate_definition(self) -> NodeDefinition:
         validate_ref_identifier(self.node_id, kind="node id")
+        validate_node_fields(
+            self.fields,
+            self.input_sources,
+            self.output_field,
+        )
         return self
 
 
@@ -82,12 +99,7 @@ class GraphDefinition(BaseModel):
                 "graph definition"
             )
         dependencies = {
-            node.node_id: {
-                dep
-                for ref in node.input_sources.values()
-                if (dep := ref.dependency_node_id) is not None
-            }
-            for node in self.nodes
+            node.node_id: node.dependencies() for node in self.nodes
         }
         for node_id, deps in dependencies.items():
             unknown = sorted(deps - known)
@@ -115,6 +127,12 @@ class GraphDefinition(BaseModel):
         Variable values. Every declared Variable for every Node must be set.
         """
         assignments = variable_assignments or {}
+        unknown = sorted(set(assignments) - set(self.node_ids()))
+        if unknown:
+            joined = ", ".join(repr(node_id) for node_id in unknown)
+            raise ValueError(
+                f"variable assignment(s) {joined} reference unknown node id(s)"
+            )
         nodes: list[NodeConfig] = []
         for definition in self.nodes:
             values = dict(assignments.get(definition.node_id, {}))

@@ -35,6 +35,7 @@ def execute_graph(
     run_node: RunNode,
     completed: Mapping[str, NodeOutput | Mapping[str, Any]] | None = None,
 ) -> GraphRunResult:
+    computed_graph_hash = graph_hash(graph)
     completed_outputs = _validated_completed_outputs(
         graph=graph,
         completed=completed,
@@ -87,6 +88,7 @@ def execute_graph(
         outcomes=outcomes,
         execution_order=tuple(execution_order),
         inputs=inputs,
+        graph_hash_value=computed_graph_hash,
     )
 
 
@@ -173,8 +175,7 @@ def _run_node(
     output = NodeOutput.model_validate(run_node(node, node_inputs))
     if node.output_field not in output.values:
         raise NodeExecutionError(
-            f"node {node.node_id!r} output missing field "
-            f"{node.output_field!r}"
+            f"node {node.node_id!r} output missing field {node.output_field!r}"
         )
     return output
 
@@ -198,6 +199,7 @@ def _build_result(
     outcomes: dict[str, NodeOutcome],
     execution_order: tuple[str, ...],
     inputs: Mapping[str, Any],
+    graph_hash_value: str,
 ) -> GraphRunResult:
     terminal = outcomes[graph.terminal_node_id]
     terminal_output: Any | None = None
@@ -217,7 +219,7 @@ def _build_result(
         )
 
     return GraphRunResult(
-        graph_hash=graph_hash(graph),
+        graph_hash=graph_hash_value,
         external_inputs=dict(inputs),
         status=_graph_status(
             terminal=terminal,

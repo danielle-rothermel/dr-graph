@@ -39,12 +39,9 @@ def node(  # noqa: PLR0913 -- the config surface, not incidental knobs
     }
     if fields is None:
         derived = [
-            NodeFieldSpec(name=name, role=FieldRole.INPUT)
-            for name in sources
+            NodeFieldSpec(name=name, role=FieldRole.INPUT) for name in sources
         ]
-        derived.append(
-            NodeFieldSpec(name=output_field, role=FieldRole.OUTPUT)
-        )
+        derived.append(NodeFieldSpec(name=output_field, role=FieldRole.OUTPUT))
         field_specs = tuple(derived)
     else:
         field_specs = tuple(fields)

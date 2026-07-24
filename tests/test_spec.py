@@ -135,6 +135,22 @@ def test_node_config_rejects_source_to_undeclared_input_field() -> None:
         )
 
 
+def test_node_config_rejects_input_field_without_source() -> None:
+    with pytest.raises(
+        ValueError,
+        match="input field\\(s\\) 'prompt' have no input source",
+    ):
+        NodeConfig(
+            node_id="n",
+            node_type="llm_call",
+            fields=(
+                NodeFieldSpec(name="prompt", role=FieldRole.INPUT),
+                NodeFieldSpec(name="output", role=FieldRole.OUTPUT),
+            ),
+            output_field="output",
+        )
+
+
 def test_unknown_task_input_field_validation() -> None:
     graph = _graph(
         _node("direct", input_sources={"prompt": "task.promt"}),

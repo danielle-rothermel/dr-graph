@@ -18,7 +18,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "dr-serialize>=0.1.0",
+    # dr-serialize's canonicalization defines graph_hash; bound to the tested
+    # 0.1.x range so an upgrade cannot change identities without a golden
+    # review.
+    "dr-serialize>=0.1.0,<0.2.0",
     "pydantic>=2.13.4",
 ]
 

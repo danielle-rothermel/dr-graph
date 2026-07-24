@@ -10,7 +10,9 @@ from dr_graph import (
     NodeDefinition,
     NodeFieldSpec,
     NodeInputSourceRef,
+    graph,
     graph_hash,
+    node,
 )
 
 
@@ -81,7 +83,6 @@ def test_definition_materializes_multiple_distinct_configs() -> None:
 
 def test_materialized_config_hash_matches_direct_config() -> None:
     definition = _encdec_definition()
-    from tests.golden_graphs import encdec_graph
 
     materialized = definition.materialize(
         {
@@ -91,10 +92,39 @@ def test_materialized_config_hash_matches_direct_config() -> None:
             },
         }
     )
-    # Same wiring/fields but encdec_graph adds a provider_config_id variable,
-    # so hashes differ; the point is materialize yields a valid GraphConfig.
-    assert materialized.node("encoder").node_type == "llm_call"
-    assert graph_hash(materialized) != graph_hash(encdec_graph())
+    # A hand-built GraphConfig with the same node ids, node_types, fields,
+    # input_sources, output fields, and exactly the materialized variables
+    # must be graph-identical to what materialize wires up.
+    direct = graph(
+        [
+            node(
+                "encoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(name="prompt", role=FieldRole.INPUT),
+                    NodeFieldSpec(name="description", role=FieldRole.OUTPUT),
+                ),
+                input_sources={"prompt": "task.prompt"},
+                output_field="description",
+                variables={"user_prompt_template": "Describe {prompt}"},
+            ),
+            node(
+                "decoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(name="description", role=FieldRole.INPUT),
+                    NodeFieldSpec(name="code", role=FieldRole.OUTPUT),
+                ),
+                input_sources={"description": "encoder.description"},
+                output_field="code",
+                variables={
+                    "user_prompt_template": "Write code from {description}"
+                },
+            ),
+        ],
+        terminal="decoder",
+    )
+    assert graph_hash(materialized) == graph_hash(direct)
 
 
 def test_materialize_rejects_missing_required_variable() -> None:
@@ -119,6 +149,37 @@ def test_materialize_rejects_undeclared_variable() -> None:
                 },
                 "decoder": {"user_prompt_template": "z"},
             }
+        )
+
+
+def test_materialize_rejects_unknown_node_id() -> None:
+    definition = _encdec_definition()
+    with pytest.raises(
+        ValueError,
+        match="reference unknown node id",
+    ):
+        definition.materialize(
+            {
+                "encoder": {"user_prompt_template": "x"},
+                "decoder": {"user_prompt_template": "y"},
+                "typo": {"user_prompt_template": "z"},
+            }
+        )
+
+
+def test_definition_rejects_unsourced_input_field() -> None:
+    with pytest.raises(
+        ValueError,
+        match="input field\\(s\\) 'seed' have no input source",
+    ):
+        NodeDefinition(
+            node_id="a",
+            node_type="llm_call",
+            fields=(
+                NodeFieldSpec(name="seed", role=FieldRole.INPUT),
+                NodeFieldSpec(name="out", role=FieldRole.OUTPUT),
+            ),
+            output_field="out",
         )
 
 

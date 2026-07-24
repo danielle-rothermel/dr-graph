@@ -104,6 +104,24 @@ def test_graph_hash_rejects_non_finite_variable(non_finite: float) -> None:
         graph_hash(graph)
 
 
+def test_graph_hash_rejects_tuple_variable() -> None:
+    # A tuple Variable value is an unsupported type: only structural tuples
+    # (nodes, fields) are normalized to lists, so the tuple leaf must reach
+    # dr-serialize's recursive validator and be rejected raw.
+    graph = _graph_with_variable((1, 2))
+    with pytest.raises(StrictJsonError):
+        graph_hash(graph)
+
+
+def test_graph_hash_accepts_list_variable_and_differs_from_tuple() -> None:
+    # A list Variable value hashes fine, while the tuple form raises: the two
+    # must never silently collide onto the same graph_hash.
+    list_hash = graph_hash(_graph_with_variable([1, 2]))
+    assert len(list_hash) == HASH_HEX_LENGTH
+    with pytest.raises(StrictJsonError):
+        graph_hash(_graph_with_variable((1, 2)))
+
+
 def test_finite_variables_still_produce_distinct_hashes() -> None:
     # Guardrail for the fix: valid finite/None Variable values are NOT rejected
     # and remain distinguishable (None must not collide with a non-finite one).

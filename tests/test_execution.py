@@ -3,11 +3,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import pytest
+from dr_serialize import StrictJsonError
+
 from dr_graph import (
+    FieldRole,
     GraphRunStatus,
     InputResolutionError,
     NodeConfig,
     NodeExecutionError,
+    NodeFieldSpec,
     NodeOutcomeStatus,
     NodeOutput,
     execute_graph,
@@ -331,6 +336,30 @@ def test_run_node_dict_return_is_coerced_to_node_output() -> None:
 
     assert result.status is GraphRunStatus.SUCCESS
     assert result.terminal_output == "ok"
+
+
+def test_unhashable_graph_raises_before_run_node_is_invoked() -> None:
+    # graph_hash must be computed up front: a non-finite float Variable makes
+    # the config unhashable, and that failure must precede any run_node
+    # side effect rather than surfacing only inside _build_result.
+    node = NodeConfig(
+        node_id="direct",
+        node_type="llm_call",
+        fields=(NodeFieldSpec(name="output", role=FieldRole.OUTPUT),),
+        output_field="output",
+        variables={"x": float("nan")},
+    )
+    graph = _graph(node, terminal_node_id="direct")
+    invoked: list[str] = []
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        invoked.append(node.node_id)
+        return _output("unreachable")
+
+    with pytest.raises(StrictJsonError):
+        execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    assert invoked == []
 
 
 def test_invalid_run_node_return_shape_becomes_error_outcome() -> None:

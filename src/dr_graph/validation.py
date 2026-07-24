@@ -103,8 +103,7 @@ def validate_node_input_source(
         return
     if ref.node_id not in nodes_by_id:
         raise GraphValidationError(
-            f"input source {ref.ref!r} points at unknown node "
-            f"{ref.node_id!r}"
+            f"input source {ref.ref!r} points at unknown node {ref.node_id!r}"
         )
     if ref.field is None:
         return
