@@ -50,7 +50,7 @@ def test_golden_fixture_covers_every_graph() -> None:
 def test_schema_version_change_changes_graph_hash() -> None:
     """Golden coverage for schema-version changes: bumping the Identity
     Document schema_version MUST change the Graph Hash."""
-    from dr_serialize import build_identity_document, identity_hash
+    from dr_serialize import build_identity_document, identity_document_hash
 
     from dr_graph.hashing import (
         GRAPH_CONFIG_IDENTITY_SCHEMA,
@@ -60,14 +60,14 @@ def test_schema_version_change_changes_graph_hash() -> None:
 
     config = GOLDEN_GRAPHS["encdec_graph"]
     payload = graph_config_identity_payload(config)
-    v1 = identity_hash(
+    v1 = identity_document_hash(
         build_identity_document(
             schema=GRAPH_CONFIG_IDENTITY_SCHEMA,
             schema_version=GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION,
             payload=payload,
         )
     )
-    v2 = identity_hash(
+    v2 = identity_document_hash(
         build_identity_document(
             schema=GRAPH_CONFIG_IDENTITY_SCHEMA,
             schema_version=GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION + 1,

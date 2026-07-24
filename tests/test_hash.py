@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 import pytest
-from dr_serialize import FiniteJsonError
+from dr_serialize import StrictJsonError
 
 from dr_graph import (
     FieldRole,
@@ -100,7 +100,7 @@ def test_graph_hash_rejects_non_finite_variable(non_finite: float) -> None:
     # canonicalization: model_dump(mode="json") would silently coerce
     # NaN/Inf to null, colliding distinct configs onto one graph_hash.
     graph = _graph_with_variable(non_finite)
-    with pytest.raises(FiniteJsonError):
+    with pytest.raises(StrictJsonError):
         graph_hash(graph)
 
 
