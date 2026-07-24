@@ -64,7 +64,10 @@ def _scanned_docs() -> list[Path]:
     # README.md, everything under docs/ (docs/adr/ is removed, so no ADR
     # exclusion is needed), and the .defs/vocab.html glossary. api-notes.md is
     # excluded via EXEMPT_FILES because it records rename history on purpose.
-    docs: list[Path] = [REPO_ROOT / "README.md", REPO_ROOT / ".defs" / "vocab.html"]
+    docs: list[Path] = [
+        REPO_ROOT / "README.md",
+        REPO_ROOT / ".defs" / "vocab.html",
+    ]
     for pattern in ("*.md", "*.html"):
         docs.extend((REPO_ROOT / "docs").rglob(pattern))
     return [
@@ -84,6 +87,6 @@ def test_no_stale_migration_source_names(stale: str) -> None:
             if pattern.search(line):
                 rel = path.relative_to(REPO_ROOT)
                 offenders.append(f"{rel}:{lineno}: {line.strip()}")
-    assert not offenders, (
-        f"stale name {stale!r} still present:\n" + "\n".join(offenders)
+    assert not offenders, f"stale name {stale!r} still present:\n" + "\n".join(
+        offenders
     )

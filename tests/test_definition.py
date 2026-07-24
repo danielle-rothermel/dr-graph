@@ -129,17 +129,13 @@ def test_definition_enforces_single_terminal() -> None:
                 NodeDefinition(
                     node_id="a",
                     node_type="llm_call",
-                    fields=(
-                        NodeFieldSpec(name="out", role=FieldRole.OUTPUT),
-                    ),
+                    fields=(NodeFieldSpec(name="out", role=FieldRole.OUTPUT),),
                     output_field="out",
                 ),
                 NodeDefinition(
                     node_id="b",
                     node_type="llm_call",
-                    fields=(
-                        NodeFieldSpec(name="out", role=FieldRole.OUTPUT),
-                    ),
+                    fields=(NodeFieldSpec(name="out", role=FieldRole.OUTPUT),),
                     output_field="out",
                 ),
             ),

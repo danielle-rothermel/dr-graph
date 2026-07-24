@@ -16,9 +16,7 @@ from dr_serialize import canonical_identity_json
 from dr_graph import graph_config_identity_document, graph_hash
 from tests.golden_graphs import GOLDEN_GRAPHS
 
-FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "graph_hashes_golden.json"
-)
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "graph_hashes_golden.json"
 
 
 def build_fixture() -> dict[str, dict[str, str]]:
