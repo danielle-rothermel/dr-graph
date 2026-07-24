@@ -20,7 +20,7 @@ the exported names.
 dr-graph defines the versioned, variable-bearing Graph Definition artifact,
 hashable Graph Configs, and a pure deterministic interpreter; Graph Configs
 are searched-over experiment treatments, with `graph_hash` as treatment
-identity. Neighbor repos are `dr-serialize`, `dr-providers`, `dr-platform`,
+identity (the contract's Rollout Variant). Neighbor repos are `dr-serialize`, `dr-providers`, `dr-platform`,
 `dr-code`, `whetstone-ai`, and `unitbench`. It depends on `dr-serialize`;
 `whetstone-ai` consumes it.
 

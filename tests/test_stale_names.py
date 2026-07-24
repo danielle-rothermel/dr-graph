@@ -35,7 +35,14 @@ STALE_NAMES = (
 )
 
 # This file is the only allowed place the retired spellings may appear.
-EXEMPT_FILES = frozenset({Path(__file__).resolve()})
+# `.defs/api-notes.md` is also exempt: it legitimately discusses the retired
+# names as rename history, so scanning it would trip the test on purpose.
+EXEMPT_FILES = frozenset(
+    {
+        Path(__file__).resolve(),
+        (REPO_ROOT / ".defs" / "api-notes.md").resolve(),
+    }
+)
 
 
 def _scanned_files() -> list[Path]:
@@ -52,11 +59,26 @@ def _scanned_json() -> list[Path]:
     return list((REPO_ROOT / "tests" / "fixtures").rglob("*.json"))
 
 
+def _scanned_docs() -> list[Path]:
+    # Current-facing prose docs must also stay free of retired spellings:
+    # README.md, everything under docs/ (docs/adr/ is removed, so no ADR
+    # exclusion is needed), and the .defs/vocab.html glossary. api-notes.md is
+    # excluded via EXEMPT_FILES because it records rename history on purpose.
+    docs: list[Path] = [REPO_ROOT / "README.md", REPO_ROOT / ".defs" / "vocab.html"]
+    for pattern in ("*.md", "*.html"):
+        docs.extend((REPO_ROOT / "docs").rglob(pattern))
+    return [
+        path
+        for path in docs
+        if path.exists() and path.resolve() not in EXEMPT_FILES
+    ]
+
+
 @pytest.mark.parametrize("stale", STALE_NAMES)
 def test_no_stale_migration_source_names(stale: str) -> None:
     pattern = re.compile(rf"\b{re.escape(stale)}\b")
     offenders: list[str] = []
-    for path in [*_scanned_files(), *_scanned_json()]:
+    for path in [*_scanned_files(), *_scanned_json(), *_scanned_docs()]:
         text = path.read_text()
         for lineno, line in enumerate(text.splitlines(), start=1):
             if pattern.search(line):

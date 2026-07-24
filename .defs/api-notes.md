@@ -17,7 +17,9 @@ these. Each item: current name, problem, proposed rename(s) with trade-offs, bla
   aligns with vocab, but is slightly less explicit that it is a declaration; `NodeFieldDef`
   keeps the `Def` family consistent at the cost of length.
 - **Blast radius:** `spec.py`, `builders.py`, `definition.py`, `__init__.py` `__all__`,
-  tests, fixtures, JSON schemas. No hash impact (field name of the type, not serialized data).
+  tests, and the doc sites `README.md` and `.defs/vocab.html` (Exported Names table). The
+  class name is never serialized (fixtures hold only field data, and no JSON-schema files
+  exist in the repo), so there is no hash impact (field name of the type, not serialized data).
 
 ## 2. `spec` module → `config` module
 
@@ -50,14 +52,18 @@ these. Each item: current name, problem, proposed rename(s) with trade-offs, bla
   Currently intentionally open per README, so this is a term/name mismatch note only, not an
   action.
 - **Blast radius:** if ever renamed — `spec.py`, builders, serialized field name (would
-  change the identity payload and therefore every graph hash). Because it is identity-bearing,
-  a rename here is a hash-breaking change and must be treated as a schema-version bump, never
-  a silent rename.
+  change the identity payload and therefore every graph hash), plus `definition.py` (the
+  mirrored `NodeDefinition.node_type` field and its `materialize()` pass-through) and
+  `compose.py` (node_type propagation during flattening); the two classes must rename in
+  lockstep. Because it is identity-bearing, a rename here is a hash-breaking change and must be
+  treated as a schema-version bump, never a silent rename.
 
 ## 5. `TerminalError` vs. `NodeError`
 
-- **Current name:** `TerminalError` (`results.py`), a near-duplicate of `NodeError`'s shape
-  restricted to the terminal node's error/blocked states.
+- **Current name:** `TerminalError` (`results.py`), a near-duplicate of `NodeOutcome` — it is
+  exactly `NodeOutcome` minus the `output` field, restricted to the ERROR/BLOCKED states (not a
+  near-duplicate of `NodeError`, which is a nested field of it). execution.py already derives
+  `TerminalError` mechanically from a `NodeOutcome`, which strengthens the proposal below.
 - **Problem:** The name reads as a distinct error type rather than "the terminal node's
   outcome error", creating an asymmetry with `NodeOutcome` naming.
 - **Proposed:** `TerminalOutcomeError`, or fold into the outcome types so the terminal case is
@@ -103,4 +109,17 @@ these. Each item: current name, problem, proposed rename(s) with trade-offs, bla
   `GraphExecutionError` for run-time failures only. Trade-off: cleaner separation vs. one extra
   base class and a break for callers currently catching `GraphExecutionError` to cover both.
 - **Blast radius:** `errors.py`, `__init__.py` `__all__`, tests asserting on the hierarchy,
-  callers catching `GraphExecutionError`. No hash impact.
+  callers catching `GraphExecutionError`, and the vocab doc (`.defs/vocab.html` error-diagnostics
+  row) which documents the current dual inheritance as intentional, so it is coupled blast
+  radius for the proposed refactor. No hash impact.
+
+## 9. `GraphDefinition.schema_version` name collision — note, do not rename
+
+- **Current name:** `GraphDefinition.schema_version` (`definition.py`).
+- **Problem:** Conceptually collides with the identity document's `schema_version` key
+  (`GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION`), though the two are independent — the definition
+  version versions the definition artifact's shape and never enters the graph hash, while the
+  identity `schema_version` versions the graph config identity document.
+- **Proposed:** no rename, note-only. Revisit only if definitions ever get their own identity
+  hashing, at which point the two version axes would need distinct, unambiguous names.
+- **Blast radius:** none (documentation-only note).
