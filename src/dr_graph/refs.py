@@ -28,15 +28,22 @@ def validate_ref_identifier(
         raise ValueError(f"{kind} {identifier!r} is reserved")
 
 
-class BindingSource(StrEnum):
-    EXTERNAL = "external"
-    NODE = "node"
+class NodeInputSourceKind(StrEnum):
+    GRAPH_EXTERNAL = "graph_external"
+    NODE_OUTPUT = "node_output"
 
 
-class BindingRef(BaseModel):
+class NodeInputSourceRef(BaseModel):
+    """One Node Input Source.
+
+    Maps one declared Node input to exactly one Graph External Input
+    (``task.<field>``) or one upstream Node Output (``node_id`` or
+    ``node_id.<field>``). Participates in Graph Config identity.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    source: BindingSource
+    kind: NodeInputSourceKind
     field: StrictStr | None = None
     node_id: StrictStr | None = None
 
@@ -48,35 +55,39 @@ class BindingRef(BaseModel):
         head, separator, tail = value.partition(REF_SEPARATOR)
         if not separator:
             return {
-                "source": BindingSource.NODE,
+                "kind": NodeInputSourceKind.NODE_OUTPUT,
                 "node_id": head,
             }
         if head == EXTERNAL_NAMESPACE:
             return {
-                "source": BindingSource.EXTERNAL,
+                "kind": NodeInputSourceKind.GRAPH_EXTERNAL,
                 "field": tail,
             }
         return {
-            "source": BindingSource.NODE,
+            "kind": NodeInputSourceKind.NODE_OUTPUT,
             "node_id": head,
             "field": tail,
         }
 
     @model_validator(mode="after")
-    def validate_shape(self) -> BindingRef:
-        if self.source is BindingSource.EXTERNAL:
+    def validate_shape(self) -> NodeInputSourceRef:
+        if self.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
             if self.node_id is not None:
                 raise ValueError(
-                    "external binding refs cannot include node_id"
+                    "graph external input sources cannot include node_id"
                 )
             if not self.field:
-                raise ValueError("external binding refs require a field")
+                raise ValueError(
+                    "graph external input sources require a field"
+                )
             return self
         if not self.node_id:
-            raise ValueError("node binding refs require node_id")
+            raise ValueError("node output input sources require node_id")
         validate_ref_identifier(self.node_id, kind="node id")
         if self.field is not None and not self.field:
-            raise ValueError("node binding refs require a non-empty field")
+            raise ValueError(
+                "node output input sources require a non-empty field"
+            )
         return self
 
     @model_serializer(mode="plain")
@@ -85,7 +96,7 @@ class BindingRef(BaseModel):
 
     @property
     def ref(self) -> str:
-        if self.source is BindingSource.EXTERNAL:
+        if self.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
             return f"{EXTERNAL_NAMESPACE}{REF_SEPARATOR}{self.field}"
         if self.field is None:
             return str(self.node_id)
@@ -93,6 +104,6 @@ class BindingRef(BaseModel):
 
     @property
     def dependency_node_id(self) -> str | None:
-        if self.source is BindingSource.NODE:
+        if self.kind is NodeInputSourceKind.NODE_OUTPUT:
             return self.node_id
         return None

@@ -17,14 +17,14 @@ def _encdec_subgraph():
         [
             node(
                 "encoder",
-                op="llm_call",
-                bindings={"prompt": "task.prompt"},
+                node_type="llm_call",
+                input_sources={"prompt": "task.prompt"},
                 output_field="description",
             ),
             node(
                 "decoder",
-                op="llm_call",
-                bindings={"description": "encoder.description"},
+                node_type="llm_call",
+                input_sources={"description": "encoder.description"},
                 output_field="code",
             ),
         ],
@@ -35,40 +35,41 @@ def _encdec_subgraph():
 def test_inline_subgraph_prefixes_ids_and_rewires_internal_refs() -> None:
     nodes = inline_subgraph(_encdec_subgraph(), prefix="inner")
 
-    assert [n.id for n in nodes] == ["inner:encoder", "inner:decoder"]
+    assert [n.node_id for n in nodes] == ["inner:encoder", "inner:decoder"]
     decoder = nodes[1]
-    assert decoder.config.input_bindings["description"].ref == (
+    assert decoder.input_sources["description"].ref == (
         "inner:encoder.description"
     )
     # Unmapped external inputs pass through.
     encoder = nodes[0]
-    assert encoder.config.input_bindings["prompt"].ref == "task.prompt"
+    assert encoder.input_sources["prompt"].ref == "task.prompt"
 
 
 def test_inline_subgraph_rebinds_external_inputs() -> None:
     parent_source = node(
         "seed",
-        op="llm_call",
-        bindings={"prompt": "task.prompt"},
+        node_type="llm_call",
+        input_sources={"prompt": "task.prompt"},
         output_field="idea",
     )
     inner = inline_subgraph(
         _encdec_subgraph(),
         prefix="inner",
-        bindings={"prompt": "seed.idea"},
+        input_sources={"prompt": "seed.idea"},
     )
-    spec = graph(
+    config = graph(
         [parent_source, *inner],
         terminal=prefixed_node_id("inner", "decoder"),
     )
 
     result = execute_graph(
-        graph=spec,
+        graph=config,
         inputs={"prompt": "adder"},
-        run_node=lambda node_spec, inputs: {
+        run_node=lambda node_config, inputs: {
             "values": {
-                node_spec.config.output_field: (
-                    f"{node_spec.id}({', '.join(sorted(inputs.values()))})"
+                node_config.output_field: (
+                    f"{node_config.node_id}"
+                    f"({', '.join(sorted(inputs.values()))})"
                 )
             }
         },
@@ -79,22 +80,23 @@ def test_inline_subgraph_rebinds_external_inputs() -> None:
     )
 
 
-def test_inline_subgraph_composed_graph_digest_is_flattened_spec() -> None:
+def test_inline_subgraph_composed_graph_hash_is_flattened_config() -> None:
     inner = inline_subgraph(_encdec_subgraph(), prefix="inner")
     composed = graph(list(inner), terminal="inner:decoder")
 
-    from dr_graph import GraphSpec
+    from dr_graph import GraphConfig, graph_hash
 
-    manual = GraphSpec.model_validate(composed.model_dump(mode="json"))
+    manual = GraphConfig.model_validate(composed.model_dump(mode="json"))
     assert composed == manual
+    assert graph_hash(composed) == graph_hash(manual)
 
 
-def test_inline_subgraph_rejects_unknown_binding() -> None:
+def test_inline_subgraph_rejects_unknown_input_source() -> None:
     with pytest.raises(ValueError, match="not external inputs"):
         inline_subgraph(
             _encdec_subgraph(),
             prefix="inner",
-            bindings={"nope": "seed.idea"},
+            input_sources={"nope": "seed.idea"},
         )
 
 
@@ -107,19 +109,19 @@ def test_inline_subgraph_rejects_bad_prefix_and_separator() -> None:
         inline_subgraph(_encdec_subgraph(), prefix="ok", separator=".")
 
 
-def test_inline_subgraph_preserves_ops_and_parameters() -> None:
+def test_inline_subgraph_preserves_node_types_and_variables() -> None:
     sub = graph(
         [
             node(
                 "score",
-                op="tool_call",
-                bindings={"code": "task.code"},
+                node_type="tool_call",
+                input_sources={"code": "task.code"},
                 output_field="score",
-                parameters={"threshold": 0.5, "note": "keep"},
+                variables={"threshold": 0.5, "note": "keep"},
             ),
         ],
         terminal="score",
     )
     (inlined,) = inline_subgraph(sub, prefix="s")
-    assert inlined.op == "tool_call"
-    assert inlined.config.parameters == {"threshold": 0.5, "note": "keep"}
+    assert inlined.node_type == "tool_call"
+    assert inlined.variables == {"threshold": 0.5, "note": "keep"}

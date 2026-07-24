@@ -12,13 +12,12 @@ from enum import StrEnum
 from typing import Any, ClassVar
 
 from dr_graph import (
-    BindingRef,
     FieldRole,
-    FieldSpec,
-    GraphSpec,
+    GraphConfig,
     NodeConfig,
+    NodeFieldSpec,
+    NodeInputSourceRef,
     NodeOutput,
-    NodeSpec,
 )
 
 
@@ -46,25 +45,23 @@ class PermanentFailureError(Exception):
 def _node(
     node_id: str,
     *,
-    bindings: dict[str, str] | None = None,
+    input_sources: dict[str, str] | None = None,
     output_field: str = "output",
-) -> NodeSpec:
-    input_bindings = {
-        name: BindingRef.model_validate(ref)
-        for name, ref in (bindings or {}).items()
+) -> NodeConfig:
+    sources = {
+        name: NodeInputSourceRef.model_validate(ref)
+        for name, ref in (input_sources or {}).items()
     }
     fields = [
-        FieldSpec(name=name, role=FieldRole.INPUT) for name in input_bindings
+        NodeFieldSpec(name=name, role=FieldRole.INPUT) for name in sources
     ]
-    fields.append(FieldSpec(name=output_field, role=FieldRole.OUTPUT))
-    return NodeSpec(
-        id=node_id,
-        op="llm_call",
-        config=NodeConfig(
-            fields=tuple(fields),
-            input_bindings=input_bindings,
-            output_field=output_field,
-        ),
+    fields.append(NodeFieldSpec(name=output_field, role=FieldRole.OUTPUT))
+    return NodeConfig(
+        node_id=node_id,
+        node_type="llm_call",
+        fields=tuple(fields),
+        input_sources=sources,
+        output_field=output_field,
     )
 
 
@@ -73,10 +70,10 @@ def _output(value: Any, *, field: str = "output") -> NodeOutput:
 
 
 def _graph(
-    *nodes: NodeSpec,
+    *nodes: NodeConfig,
     terminal_node_id: str,
-) -> GraphSpec:
-    return GraphSpec(
+) -> GraphConfig:
+    return GraphConfig(
         nodes=nodes,
         terminal_node_id=terminal_node_id,
     )

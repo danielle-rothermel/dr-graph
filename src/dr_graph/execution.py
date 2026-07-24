@@ -10,7 +10,8 @@ from dr_graph.errors import (
     InputResolutionError,
     NodeExecutionError,
 )
-from dr_graph.refs import BindingSource
+from dr_graph.hashing import graph_hash
+from dr_graph.refs import NodeInputSourceKind
 from dr_graph.results import (
     GraphRunResult,
     GraphRunStatus,
@@ -19,21 +20,22 @@ from dr_graph.results import (
     NodeOutput,
     TerminalError,
 )
-from dr_graph.spec import GraphSpec, NodeSpec
+from dr_graph.spec import GraphConfig, NodeConfig
 
 type RunNode = Callable[
-    [NodeSpec, Mapping[str, Any]],
+    [NodeConfig, Mapping[str, Any]],
     NodeOutput | Mapping[str, Any],
 ]
 
 
 def execute_graph(
     *,
-    graph: GraphSpec,
+    graph: GraphConfig,
     inputs: Mapping[str, Any],
     run_node: RunNode,
     completed: Mapping[str, NodeOutput | Mapping[str, Any]] | None = None,
 ) -> GraphRunResult:
+    computed_graph_hash = graph_hash(graph)
     completed_outputs = _validated_completed_outputs(
         graph=graph,
         completed=completed,
@@ -42,17 +44,17 @@ def execute_graph(
     execution_order: list[str] = []
 
     for node in graph.topological_order():
-        execution_order.append(node.id)
-        if node.id in completed_outputs:
-            outcomes[node.id] = NodeOutcome.success(
-                node_id=node.id,
-                output=completed_outputs[node.id],
+        execution_order.append(node.node_id)
+        if node.node_id in completed_outputs:
+            outcomes[node.node_id] = NodeOutcome.success(
+                node_id=node.node_id,
+                output=completed_outputs[node.node_id],
             )
             continue
         blocked_by = _blocked_dependencies(node, outcomes)
         if blocked_by:
-            outcomes[node.id] = NodeOutcome.blocked(
-                node_id=node.id,
+            outcomes[node.node_id] = NodeOutcome.blocked(
+                node_id=node.node_id,
                 blocked_by=blocked_by,
             )
             continue
@@ -70,14 +72,14 @@ def execute_graph(
                 run_node=run_node,
             )
         except Exception as error:  # noqa: BLE001 -- outcomes absorb node failures
-            outcomes[node.id] = NodeOutcome.from_error(
-                node_id=node.id,
+            outcomes[node.node_id] = NodeOutcome.from_error(
+                node_id=node.node_id,
                 error=error,
             )
             continue
 
-        outcomes[node.id] = NodeOutcome.success(
-            node_id=node.id,
+        outcomes[node.node_id] = NodeOutcome.success(
+            node_id=node.node_id,
             output=output,
         )
 
@@ -85,30 +87,32 @@ def execute_graph(
         graph=graph,
         outcomes=outcomes,
         execution_order=tuple(execution_order),
+        inputs=inputs,
+        graph_hash_value=computed_graph_hash,
     )
 
 
 def resolve_node_inputs(
     *,
-    node: NodeSpec,
+    node: NodeConfig,
     inputs: Mapping[str, Any],
     outcomes: Mapping[str, NodeOutcome],
-    graph: GraphSpec,
+    graph: GraphConfig,
 ) -> dict[str, Any]:
     resolved: dict[str, Any] = {}
-    for field_name, ref in node.config.input_bindings.items():
-        if ref.source is BindingSource.EXTERNAL:
+    for field_name, ref in node.input_sources.items():
+        if ref.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
             if ref.field is None or ref.field not in inputs:
                 raise InputResolutionError(
                     f"missing external input {ref.field!r} "
-                    f"for node {node.id!r}"
+                    f"for node {node.node_id!r}"
                 )
             resolved[field_name] = inputs[ref.field]
             continue
 
         if ref.node_id is None:
             raise InputResolutionError(
-                f"node input ref {ref.ref!r} has no node id"
+                f"node input source {ref.ref!r} has no node id"
             )
         upstream = outcomes.get(ref.node_id)
         if (
@@ -122,7 +126,7 @@ def resolve_node_inputs(
             raise InputResolutionError(
                 f"upstream node {ref.node_id!r} has no output"
             )
-        output_field = ref.field or graph.node(ref.node_id).config.output_field
+        output_field = ref.field or graph.node(ref.node_id).output_field
         if output_field not in upstream.output.values:
             raise InputResolutionError(
                 f"upstream node {ref.node_id!r} output missing "
@@ -134,7 +138,7 @@ def resolve_node_inputs(
 
 def _validated_completed_outputs(
     *,
-    graph: GraphSpec,
+    graph: GraphConfig,
     completed: Mapping[str, NodeOutput | Mapping[str, Any]] | None,
 ) -> dict[str, NodeOutput]:
     if not completed:
@@ -152,7 +156,7 @@ def _validated_completed_outputs(
             raise CompletedNodeError(
                 f"completed output for node {node_id!r} is invalid: {error}"
             ) from error
-        output_field = graph.node(node_id).config.output_field
+        output_field = graph.node(node_id).output_field
         if output_field not in output.values:
             raise CompletedNodeError(
                 f"completed output for node {node_id!r} missing "
@@ -164,21 +168,20 @@ def _validated_completed_outputs(
 
 def _run_node(
     *,
-    node: NodeSpec,
+    node: NodeConfig,
     node_inputs: Mapping[str, Any],
     run_node: RunNode,
 ) -> NodeOutput:
     output = NodeOutput.model_validate(run_node(node, node_inputs))
-    if node.config.output_field not in output.values:
+    if node.output_field not in output.values:
         raise NodeExecutionError(
-            f"node {node.id!r} output missing field "
-            f"{node.config.output_field!r}"
+            f"node {node.node_id!r} output missing field {node.output_field!r}"
         )
     return output
 
 
 def _blocked_dependencies(
-    node: NodeSpec,
+    node: NodeConfig,
     outcomes: Mapping[str, NodeOutcome],
 ) -> tuple[str, ...]:
     return tuple(
@@ -192,9 +195,11 @@ def _blocked_dependencies(
 
 def _build_result(
     *,
-    graph: GraphSpec,
+    graph: GraphConfig,
     outcomes: dict[str, NodeOutcome],
     execution_order: tuple[str, ...],
+    inputs: Mapping[str, Any],
+    graph_hash_value: str,
 ) -> GraphRunResult:
     terminal = outcomes[graph.terminal_node_id]
     terminal_output: Any | None = None
@@ -203,7 +208,7 @@ def _build_result(
     if terminal.status is NodeOutcomeStatus.SUCCESS:
         if terminal.output is not None:
             terminal_output = terminal.output.values[
-                graph.node(graph.terminal_node_id).config.output_field
+                graph.node(graph.terminal_node_id).output_field
             ]
     else:
         terminal_error = TerminalError(
@@ -214,6 +219,8 @@ def _build_result(
         )
 
     return GraphRunResult(
+        graph_hash=graph_hash_value,
+        external_inputs=dict(inputs),
         status=_graph_status(
             terminal=terminal,
             outcomes=outcomes,

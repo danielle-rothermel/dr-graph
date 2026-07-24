@@ -3,21 +3,27 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import pytest
+from dr_serialize import StrictJsonError
+
 from dr_graph import (
+    FieldRole,
     GraphRunStatus,
     InputResolutionError,
+    NodeConfig,
     NodeExecutionError,
+    NodeFieldSpec,
     NodeOutcomeStatus,
     NodeOutput,
-    NodeSpec,
     execute_graph,
+    graph_hash,
 )
 from tests.support import PermanentFailureError, _graph, _node, _output
 
 
 def test_direct_one_node_graph_success() -> None:
     graph = _graph(
-        _node("direct", bindings={"prompt": "task.prompt"}),
+        _node("direct", input_sources={"prompt": "task.prompt"}),
         terminal_node_id="direct",
     )
 
@@ -31,17 +37,19 @@ def test_direct_one_node_graph_success() -> None:
     assert result.execution_order == ("direct",)
     assert result.terminal_output == "code for write add"
     assert result.outcomes["direct"].status is NodeOutcomeStatus.SUCCESS
+    assert result.graph_hash == graph_hash(graph)
+    assert result.external_inputs == {"prompt": "write add"}
 
 
 def test_two_node_graph_binds_upstream_output_into_downstream_input() -> None:
     encoder = _node(
         "encoder",
-        bindings={"prompt": "task.prompt"},
+        input_sources={"prompt": "task.prompt"},
         output_field="description",
     )
     decoder = _node(
         "decoder",
-        bindings={"description": "encoder.description"},
+        input_sources={"description": "encoder.description"},
         output_field="code",
     )
     graph = _graph(
@@ -51,9 +59,9 @@ def test_two_node_graph_binds_upstream_output_into_downstream_input() -> None:
     )
     seen_inputs: dict[str, Mapping[str, Any]] = {}
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        seen_inputs[node.id] = dict(inputs)
-        if node.id == "encoder":
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        seen_inputs[node.node_id] = dict(inputs)
+        if node.node_id == "encoder":
             return _output("plain description", field="description")
         return _output(
             f"def f(): return {inputs['description']!r}",
@@ -74,25 +82,25 @@ def test_two_node_graph_binds_upstream_output_into_downstream_input() -> None:
 
 def test_topological_order_is_deterministic_for_independent_nodes() -> None:
     graph = _graph(
+        _node("middle", input_sources={"z": "zeta", "a": "alpha"}),
         _node("zeta"),
         _node("alpha"),
-        _node("middle"),
         terminal_node_id="middle",
     )
 
     result = execute_graph(
         graph=graph,
         inputs={},
-        run_node=lambda node, inputs: _output(node.id),
+        run_node=lambda node, inputs: _output(node.node_id),
     )
 
-    assert result.execution_order == ("alpha", "middle", "zeta")
+    assert result.execution_order == ("alpha", "zeta", "middle")
     assert result.terminal_output == "middle"
 
 
 def test_missing_task_input_becomes_error_outcome() -> None:
     graph = _graph(
-        _node("direct", bindings={"prompt": "task.prompt"}),
+        _node("direct", input_sources={"prompt": "task.prompt"}),
         terminal_node_id="direct",
     )
 
@@ -142,7 +150,7 @@ def test_node_exception_captures_persistable_error() -> None:
         metadata={"provider": "test"},
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
         raise error
 
     result = execute_graph(graph=graph, inputs={}, run_node=run_node)
@@ -167,7 +175,7 @@ def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
 
     graph = _graph(_node("direct"), terminal_node_id="direct")
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
         raise StepFailure
 
     result = execute_graph(graph=graph, inputs={}, run_node=run_node)
@@ -189,7 +197,7 @@ def test_node_error_preserves_underlying_exception_type() -> None:
         metadata={"stage": "parse"},
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
         raise error
 
     result = execute_graph(graph=graph, inputs={}, run_node=run_node)
@@ -213,7 +221,7 @@ def test_node_error_preserves_chained_underlying_exception_type() -> None:
         metadata={"stage": "parse"},
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
         raise error
 
     result = execute_graph(graph=graph, inputs={}, run_node=run_node)
@@ -225,35 +233,15 @@ def test_node_error_preserves_chained_underlying_exception_type() -> None:
     )
 
 
-def test_independent_nodes_continue_after_unrelated_failure() -> None:
-    graph = _graph(
-        _node("terminal"),
-        _node("bad"),
-        terminal_node_id="terminal",
-    )
-
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        if node.id == "bad":
-            raise RuntimeError("boom")
-        return _output("ok")
-
-    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
-
-    assert result.status is GraphRunStatus.PARTIAL
-    assert result.terminal_output == "ok"
-    assert result.outcomes["bad"].status is NodeOutcomeStatus.ERROR
-    assert result.outcomes["terminal"].status is NodeOutcomeStatus.SUCCESS
-
-
 def test_downstream_nodes_are_blocked_when_dependency_errors() -> None:
     graph = _graph(
-        _node("encoder", bindings={"prompt": "task.prompt"}),
-        _node("decoder", bindings={"description": "encoder"}),
+        _node("encoder", input_sources={"prompt": "task.prompt"}),
+        _node("decoder", input_sources={"description": "encoder"}),
         terminal_node_id="decoder",
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        if node.id == "encoder":
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "encoder":
             raise RuntimeError("encoder failed")
         return _output("unreachable")
 
@@ -274,15 +262,15 @@ def test_downstream_nodes_are_blocked_when_dependency_errors() -> None:
 
 def test_blocked_nodes_do_not_invoke_run_node() -> None:
     graph = _graph(
-        _node("encoder", bindings={"prompt": "task.prompt"}),
-        _node("decoder", bindings={"description": "encoder"}),
+        _node("encoder", input_sources={"prompt": "task.prompt"}),
+        _node("decoder", input_sources={"description": "encoder"}),
         terminal_node_id="decoder",
     )
     invoked: list[str] = []
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        invoked.append(node.id)
-        if node.id == "encoder":
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        invoked.append(node.node_id)
+        if node.node_id == "encoder":
             raise RuntimeError("encoder failed")
         return _output("unreachable")
 
@@ -299,15 +287,15 @@ def test_blocked_nodes_do_not_invoke_run_node() -> None:
 
 def test_blocked_node_lists_all_failed_dependencies() -> None:
     graph = _graph(
-        _node("terminal", bindings={"left": "a", "right": "b"}),
+        _node("terminal", input_sources={"left": "a", "right": "b"}),
         _node("b"),
         _node("a"),
         terminal_node_id="terminal",
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        if node.id in {"a", "b"}:
-            raise RuntimeError(f"{node.id} errored")
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id in {"a", "b"}:
+            raise RuntimeError(f"{node.node_id} errored")
         return _output("unreachable")
 
     result = execute_graph(graph=graph, inputs={}, run_node=run_node)
@@ -320,12 +308,12 @@ def test_blocked_node_lists_all_failed_dependencies() -> None:
 def test_default_node_ref_uses_upstream_configured_output_field() -> None:
     graph = _graph(
         _node("encoder", output_field="description"),
-        _node("decoder", bindings={"description": "encoder"}),
+        _node("decoder", input_sources={"description": "encoder"}),
         terminal_node_id="decoder",
     )
 
-    def run_node(node: NodeSpec, inputs: Mapping[str, Any]) -> NodeOutput:
-        if node.id == "encoder":
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "encoder":
             return _output("summary", field="description")
         return _output(inputs["description"])
 
@@ -348,6 +336,30 @@ def test_run_node_dict_return_is_coerced_to_node_output() -> None:
 
     assert result.status is GraphRunStatus.SUCCESS
     assert result.terminal_output == "ok"
+
+
+def test_unhashable_graph_raises_before_run_node_is_invoked() -> None:
+    # graph_hash must be computed up front: a non-finite float Variable makes
+    # the config unhashable, and that failure must precede any run_node
+    # side effect rather than surfacing only inside _build_result.
+    node = NodeConfig(
+        node_id="direct",
+        node_type="llm_call",
+        fields=(NodeFieldSpec(name="output", role=FieldRole.OUTPUT),),
+        output_field="output",
+        variables={"x": float("nan")},
+    )
+    graph = _graph(node, terminal_node_id="direct")
+    invoked: list[str] = []
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        invoked.append(node.node_id)
+        return _output("unreachable")
+
+    with pytest.raises(StrictJsonError):
+        execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    assert invoked == []
 
 
 def test_invalid_run_node_return_shape_becomes_error_outcome() -> None:

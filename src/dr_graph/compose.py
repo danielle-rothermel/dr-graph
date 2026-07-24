@@ -1,20 +1,24 @@
 """Inline subgraph composition.
 
 v1 represents composition by flattening: `inline_subgraph` returns the
-subgraph's nodes renamed under a prefix, with internal refs rewired and
-external inputs optionally rebound to parent-side refs. The composed
-graph is an ordinary `GraphSpec`; its digest is the digest of the
-flattened spec.
+subgraph's nodes renamed under a prefix, with internal input sources rewired
+and external inputs optionally rebound to parent-side sources. The composed
+graph is an ordinary `GraphConfig`; its `graph_hash` is the hash of the
+flattened config.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from dr_graph.builders import as_binding_ref
-from dr_graph.refs import REF_SEPARATOR, BindingRef, BindingSource
-from dr_graph.spec import GraphSpec, NodeConfig, NodeSpec
-from dr_graph.validation import external_binding_fields
+from dr_graph.builders import as_node_input_source_ref
+from dr_graph.refs import (
+    REF_SEPARATOR,
+    NodeInputSourceKind,
+    NodeInputSourceRef,
+)
+from dr_graph.spec import GraphConfig, NodeConfig
+from dr_graph.validation import external_input_fields
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,18 +36,18 @@ def prefixed_node_id(
 
 
 def inline_subgraph(
-    subgraph: GraphSpec,
+    subgraph: GraphConfig,
     *,
     prefix: str,
-    bindings: Mapping[str, str | BindingRef] | None = None,
+    input_sources: Mapping[str, str | NodeInputSourceRef] | None = None,
     separator: str = DEFAULT_SUBGRAPH_SEPARATOR,
-) -> tuple[NodeSpec, ...]:
+) -> tuple[NodeConfig, ...]:
     """Return the subgraph's nodes renamed and rewired for a parent graph.
 
-    ``bindings`` maps external input fields of the subgraph to parent-side
-    refs (parent node outputs or parent external inputs). Unmapped external
-    inputs pass through unchanged and must be satisfied by the parent
-    graph's external inputs.
+    ``input_sources`` maps external input fields of the subgraph to parent-side
+    sources (parent node outputs or parent external inputs). Unmapped external
+    inputs pass through unchanged and must be satisfied by the parent graph's
+    external inputs.
     """
     if not prefix:
         raise ValueError("prefix must be non-empty")
@@ -55,29 +59,29 @@ def inline_subgraph(
             f"contain {REF_SEPARATOR!r}"
         )
     remapped = {
-        name: as_binding_ref(ref)
-        for name, ref in (bindings or {}).items()
+        name: as_node_input_source_ref(ref)
+        for name, ref in (input_sources or {}).items()
     }
-    unknown = sorted(set(remapped) - external_binding_fields(subgraph))
+    unknown = sorted(set(remapped) - external_input_fields(subgraph))
     if unknown:
         unknown_list = ", ".join(repr(name) for name in unknown)
         raise ValueError(
-            f"binding(s) {unknown_list} are not external inputs "
+            f"input source(s) {unknown_list} are not external inputs "
             "of the subgraph"
         )
-    nodes: list[NodeSpec] = []
+    nodes: list[NodeConfig] = []
     for node in subgraph.nodes:
-        input_bindings: dict[str, BindingRef] = {}
-        for field_name, ref in node.config.input_bindings.items():
-            if ref.source is BindingSource.EXTERNAL:
+        node_input_sources: dict[str, NodeInputSourceRef] = {}
+        for field_name, ref in node.input_sources.items():
+            if ref.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
                 if ref.field is not None and ref.field in remapped:
-                    input_bindings[field_name] = remapped[ref.field]
+                    node_input_sources[field_name] = remapped[ref.field]
                 else:
-                    input_bindings[field_name] = ref
+                    node_input_sources[field_name] = ref
                 continue
-            input_bindings[field_name] = BindingRef.model_validate(
+            node_input_sources[field_name] = NodeInputSourceRef.model_validate(
                 {
-                    "source": BindingSource.NODE,
+                    "kind": NodeInputSourceKind.NODE_OUTPUT,
                     "node_id": prefixed_node_id(
                         prefix,
                         str(ref.node_id),
@@ -87,20 +91,18 @@ def inline_subgraph(
                 }
             )
         nodes.append(
-            NodeSpec.model_validate(
+            NodeConfig.model_validate(
                 {
-                    "id": prefixed_node_id(
+                    "node_id": prefixed_node_id(
                         prefix,
-                        node.id,
+                        node.node_id,
                         separator=separator,
                     ),
-                    "op": node.op,
-                    "config": NodeConfig(
-                        fields=node.config.fields,
-                        input_bindings=input_bindings,
-                        output_field=node.config.output_field,
-                        parameters=dict(node.config.parameters),
-                    ),
+                    "node_type": node.node_type,
+                    "fields": node.fields,
+                    "input_sources": node_input_sources,
+                    "output_field": node.output_field,
+                    "variables": dict(node.variables),
                 }
             )
         )

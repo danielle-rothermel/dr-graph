@@ -8,17 +8,16 @@ on:
 jobs:
   ci:
     runs-on: depot-ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
-      # dr-* git deps are private; route their fetches through a read-only
-      # fine-grained PAT.
-      - name: Authorize private dr-* git deps
-        run: git config --global url."https://x-access-token:${{ secrets.GH_DR_ORG_REPOS_READ_TOKEN }}@github.com/danielle-rothermel/".insteadOf "https://github.com/danielle-rothermel/"
       - uses: astral-sh/setup-uv@v8.3.1
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - run: uv sync
       - run: uv run ruff check .
-      # tests/ is an empty skeleton on main; tolerate pytest exit 5
-      # (no tests collected) so the check is not permanently red.
-      - run: uv run pytest || [ $? = 5 ]
+      - run: uv run ruff format --check .
+      - run: uv run ty check
+      - run: uv run pytest

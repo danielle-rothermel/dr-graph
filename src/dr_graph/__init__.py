@@ -1,7 +1,8 @@
-"""Hashable computation-graph specs plus a pure, deterministic interpreter."""
+"""Hashable computation-graph configs and a pure deterministic interpreter."""
 
-from dr_graph.builders import as_binding_ref, graph, node
+from dr_graph.builders import as_node_input_source_ref, graph, node
 from dr_graph.compose import inline_subgraph
+from dr_graph.definition import GraphDefinition, NodeDefinition
 from dr_graph.errors import (
     CompletedNodeError,
     GraphExecutionError,
@@ -15,12 +16,15 @@ from dr_graph.execution import (
     resolve_node_inputs,
 )
 from dr_graph.hashing import (
-    canonical_graph_payload,
-    graph_digest,
+    GRAPH_CONFIG_IDENTITY_SCHEMA,
+    GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION,
+    graph_config_identity_document,
+    graph_config_identity_payload,
+    graph_hash,
 )
 from dr_graph.refs import (
-    BindingRef,
-    BindingSource,
+    NodeInputSourceKind,
+    NodeInputSourceRef,
 )
 from dr_graph.results import (
     ClassifiedFailure,
@@ -34,42 +38,45 @@ from dr_graph.results import (
 )
 from dr_graph.spec import (
     FieldRole,
-    FieldSpec,
-    GraphSpec,
+    GraphConfig,
     NodeConfig,
-    NodeSpec,
+    NodeFieldSpec,
 )
-from dr_graph.validation import validate_external_bindings
+from dr_graph.validation import validate_graph_external_inputs
 
 __all__ = [
-    "BindingRef",
-    "BindingSource",
+    "GRAPH_CONFIG_IDENTITY_SCHEMA",
+    "GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION",
     "ClassifiedFailure",
     "CompletedNodeError",
     "FieldRole",
-    "FieldSpec",
+    "GraphConfig",
+    "GraphDefinition",
     "GraphExecutionError",
     "GraphRunResult",
     "GraphRunStatus",
-    "GraphSpec",
     "GraphValidationError",
     "InputResolutionError",
     "NodeConfig",
+    "NodeDefinition",
     "NodeError",
     "NodeExecutionError",
+    "NodeFieldSpec",
+    "NodeInputSourceKind",
+    "NodeInputSourceRef",
     "NodeOutcome",
     "NodeOutcomeStatus",
     "NodeOutput",
-    "NodeSpec",
     "RunNode",
     "TerminalError",
-    "as_binding_ref",
-    "canonical_graph_payload",
+    "as_node_input_source_ref",
     "execute_graph",
     "graph",
-    "graph_digest",
+    "graph_config_identity_document",
+    "graph_config_identity_payload",
+    "graph_hash",
     "inline_subgraph",
     "node",
     "resolve_node_inputs",
-    "validate_external_bindings",
+    "validate_graph_external_inputs",
 ]
