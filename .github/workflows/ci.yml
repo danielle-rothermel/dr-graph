@@ -21,3 +21,9 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ty check
       - run: uv run pytest
+      - name: Verify wheel installation
+        run: |
+          uv build --wheel
+          uv venv --python "${{ matrix.python-version }}" .wheel-venv
+          uv pip install --python .wheel-venv/bin/python dist/*.whl
+          .wheel-venv/bin/python -c 'import dr_graph; from importlib.resources import files; assert files(dr_graph).joinpath("py.typed").is_file()'

@@ -1,4 +1,4 @@
-"""Import hygiene: the interpreter must stay dependency-light."""
+"""Import hygiene for six forbidden application-layer dependencies."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 import textwrap
 
 
-def test_import_loads_no_heavy_dependencies() -> None:
+def test_import_loads_no_known_forbidden_application_dependencies() -> None:
     script = textwrap.dedent(
         """
         import sys
