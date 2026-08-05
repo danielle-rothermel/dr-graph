@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+from collections import UserDict
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
+
+import pytest
 
 from dr_graph import ClassifiedFailure, NodeError
 from tests.core.support import PermanentFailureError
@@ -46,3 +54,75 @@ def test_unclassified_exception_gets_defaults() -> None:
     assert error.error_type == "builtins.ValueError"
     assert error.failure_class is None
     assert error.metadata == {}
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        pytest.param(
+            MappingProxyType({"attempt": 1}),
+            id="mapping-proxy",
+        ),
+        pytest.param(UserDict({"attempt": 1}), id="user-dict"),
+    ],
+)
+def test_node_error_preserves_mapping_metadata(
+    metadata: Mapping[str, Any],
+) -> None:
+    error = FullyClassifiedError()
+    error.metadata = metadata  # type: ignore[assignment]
+
+    snapshot = NodeError.from_exception(error)
+
+    assert snapshot.metadata == {
+        "attempt": 1,
+        "underlying_exception_type": "builtins.ValueError",
+    }
+    assert dict(metadata) == {"attempt": 1}
+
+
+@pytest.mark.parametrize(
+    ("cycle_setup", "underlying_type"),
+    [
+        pytest.param(
+            "outer.underlying = outer",
+            "builtins.RuntimeError",
+            id="self-cycle",
+        ),
+        pytest.param(
+            "inner = ValueError('inner')\n"
+            "inner.underlying = outer\n"
+            "outer.underlying = inner",
+            "builtins.ValueError",
+            id="two-exception-cycle",
+        ),
+    ],
+)
+def test_node_error_underlying_cycle_terminates(
+    cycle_setup: str,
+    underlying_type: str,
+) -> None:
+    script = "\n".join(
+        [
+            "from dr_graph import NodeError",
+            "outer = RuntimeError('outer')",
+            *cycle_setup.splitlines(),
+            "print(NodeError.from_exception(outer).model_dump_json())",
+        ]
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=5,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "error_type": "builtins.RuntimeError",
+        "message": "outer",
+        "failure_class": None,
+        "metadata": {"underlying_exception_type": underlying_type},
+    }
