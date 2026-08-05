@@ -3,9 +3,15 @@ from __future__ import annotations
 import pytest
 
 from dr_graph import (
+    FieldRole,
+    GraphConfig,
     GraphRunStatus,
+    NodeConfig,
+    NodeFieldSpec,
+    NodeInputSourceRef,
     execute_graph,
     graph,
+    graph_hash,
     inline_subgraph,
     node,
 )
@@ -83,12 +89,46 @@ def test_inline_subgraph_rebinds_external_inputs() -> None:
 def test_inline_subgraph_composed_graph_hash_is_flattened_config() -> None:
     inner = inline_subgraph(_encdec_subgraph(), prefix="inner")
     composed = graph(list(inner), terminal="inner:decoder")
+    expected = GraphConfig(
+        nodes=(
+            NodeConfig(
+                node_id="inner:encoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(name="prompt", role=FieldRole.INPUT),
+                    NodeFieldSpec(
+                        name="description",
+                        role=FieldRole.OUTPUT,
+                    ),
+                ),
+                input_sources={
+                    "prompt": NodeInputSourceRef.model_validate("task.prompt")
+                },
+                output_field="description",
+            ),
+            NodeConfig(
+                node_id="inner:decoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(
+                        name="description",
+                        role=FieldRole.INPUT,
+                    ),
+                    NodeFieldSpec(name="code", role=FieldRole.OUTPUT),
+                ),
+                input_sources={
+                    "description": NodeInputSourceRef.model_validate(
+                        "inner:encoder.description"
+                    )
+                },
+                output_field="code",
+            ),
+        ),
+        terminal_node_id="inner:decoder",
+    )
 
-    from dr_graph import GraphConfig, graph_hash
-
-    manual = GraphConfig.model_validate(composed.model_dump(mode="json"))
-    assert composed == manual
-    assert graph_hash(composed) == graph_hash(manual)
+    assert composed == expected
+    assert graph_hash(composed) == graph_hash(expected)
 
 
 def test_inline_subgraph_rejects_unknown_input_source() -> None:

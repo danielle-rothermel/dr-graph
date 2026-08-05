@@ -4,7 +4,9 @@ import pytest
 
 from dr_graph import (
     FieldRole,
+    GraphConfig,
     GraphRunStatus,
+    NodeConfig,
     NodeFieldSpec,
     NodeInputSourceRef,
     execute_graph,
@@ -85,12 +87,46 @@ def test_graph_builder_matches_manual_config_hash() -> None:
         ],
         terminal="decoder",
     )
-    payload = built.model_dump(mode="json")
-    from dr_graph import GraphConfig
+    expected = GraphConfig(
+        nodes=(
+            NodeConfig(
+                node_id="encoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(name="prompt", role=FieldRole.INPUT),
+                    NodeFieldSpec(
+                        name="description",
+                        role=FieldRole.OUTPUT,
+                    ),
+                ),
+                input_sources={
+                    "prompt": NodeInputSourceRef.model_validate("task.prompt")
+                },
+                output_field="description",
+            ),
+            NodeConfig(
+                node_id="decoder",
+                node_type="llm_call",
+                fields=(
+                    NodeFieldSpec(
+                        name="description",
+                        role=FieldRole.INPUT,
+                    ),
+                    NodeFieldSpec(name="code", role=FieldRole.OUTPUT),
+                ),
+                input_sources={
+                    "description": NodeInputSourceRef.model_validate(
+                        "encoder.description"
+                    )
+                },
+                output_field="code",
+            ),
+        ),
+        terminal_node_id="decoder",
+    )
 
-    manual = GraphConfig.model_validate(payload)
-    assert graph_hash(built) == graph_hash(manual)
-    assert built.terminal_node_id == "decoder"
+    assert built == expected
+    assert graph_hash(built) == graph_hash(expected)
 
 
 def test_built_graph_executes() -> None:
