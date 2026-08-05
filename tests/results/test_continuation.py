@@ -104,6 +104,71 @@ def test_fully_completed_graph_runs_without_callback_calls() -> None:
     assert result.terminal_output == "c"
 
 
+def test_completed_terminal_requires_completed_dependency() -> None:
+    invoked: list[str] = []
+
+    def run_node(
+        node_config: NodeConfig,
+        inputs: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        invoked.append(node_config.node_id)
+        return {"values": {node_config.output_field: "unexpected"}}
+
+    with pytest.raises(CompletedNodeError, match="requires completed node"):
+        execute_graph(
+            graph=_encdec(),
+            inputs={"prompt": "p"},
+            run_node=run_node,
+            completed={"decoder": {"values": {"code": "prior"}}},
+        )
+
+    assert invoked == []
+
+
+def test_completed_intermediate_requires_completed_dependency() -> None:
+    three_nodes = graph(
+        [
+            node(
+                "source",
+                node_type="llm_call",
+                input_sources={"prompt": "task.prompt"},
+                output_field="description",
+            ),
+            node(
+                "middle",
+                node_type="llm_call",
+                input_sources={"description": "source.description"},
+                output_field="summary",
+            ),
+            node(
+                "terminal",
+                node_type="llm_call",
+                input_sources={"summary": "middle.summary"},
+                output_field="code",
+            ),
+        ],
+        terminal="terminal",
+    )
+    invoked: list[str] = []
+
+    def run_node(
+        node_config: NodeConfig,
+        inputs: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        invoked.append(node_config.node_id)
+        return {"values": {node_config.output_field: "unexpected"}}
+
+    with pytest.raises(CompletedNodeError, match="requires completed node"):
+        execute_graph(
+            graph=three_nodes,
+            inputs={"prompt": "p"},
+            run_node=run_node,
+            completed={"middle": {"values": {"summary": "prior"}}},
+        )
+
+    assert invoked == []
+
+
 def test_completed_unknown_node_rejected_before_execution() -> None:
     invoked: list[str] = []
 
