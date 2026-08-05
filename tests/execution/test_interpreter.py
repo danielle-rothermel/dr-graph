@@ -221,6 +221,25 @@ def test_node_exception_captures_persistable_error() -> None:
     assert "exception" not in dumped["outcomes"]["direct"]
 
 
+def test_invalid_exception_metadata_does_not_escape_execution() -> None:
+    class InvalidMetadataError(Exception):
+        def __init__(self) -> None:
+            super().__init__("callback failed")
+            self.metadata = {"opaque": object()}
+
+    graph = _graph(_node("direct"), terminal_node_id="direct")
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        raise InvalidMetadataError
+
+    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    outcome = result.outcomes["direct"]
+    assert result.status is GraphRunStatus.ERROR
+    assert outcome.error is not None
+    assert outcome.error.metadata == {}
+
+
 def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
     class StepFailure(Exception):  # noqa: N818 -- mirrors a wrapped step failure
         def __init__(self) -> None:
