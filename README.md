@@ -3,8 +3,8 @@
 [![CI](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/dr-graph.svg)](https://pypi.org/project/dr-graph/)
 
-| [Contract reference](https://danielle-rothermel.github.io/dr-graph/) | [dr-serialize](https://github.com/danielle-rothermel/dr-serialize) |
-| --- | --- |
+| [Terms and contracts](https://danielle-rothermel.github.io/dr-graph/) | [Terms TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/terms.toml) | [Contracts TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/contracts.toml) | [dr-serialize](https://github.com/danielle-rothermel/dr-serialize) |
+| --- | --- | --- | --- |
 
 **dr-graph represents hashable computation graphs as data and interprets them
 deterministically.** Graph structure is separate from caller-supplied node

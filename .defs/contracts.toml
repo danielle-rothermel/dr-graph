@@ -1,0 +1,106 @@
+# Binding contracts for dr-graph. Each entry is a standing rule; optional
+# checks are exact commands that verify the stated behavior.
+
+[[contracts]]
+title = "Single-terminal DAG configs"
+statement = """
+Every graph definition and graph config contains at least one uniquely named \
+node, has only valid upstream references, is acyclic, and designates exactly \
+one terminal node that no other node consumes and that is the graph's only \
+sink."""
+rationale = """
+A graph must admit dependency-ordered interpretation and a single aggregate \
+output or terminal failure. Allowing cycles, dangling references, or multiple \
+sinks would make that interpretation or terminal meaning ambiguous."""
+date = "2026-08-05"
+check = "uv run pytest tests/configuration/test_graphs.py tests/definitions/test_graphs.py"
+
+[[contracts]]
+title = "Exact declared variable materialization"
+statement = """
+Materializing a graph definition binds exactly every graph-variable name \
+declared by every node definition; assignments for unknown nodes, missing \
+variables, and undeclared variables are rejected."""
+rationale = """
+Implicit defaults and ignored assignments would make a reusable definition \
+materialize differently from what it declares. Exact binding keeps the \
+resulting graph config complete and auditable."""
+date = "2026-08-05"
+check = "uv run pytest tests/definitions/test_materialization.py"
+
+[[contracts]]
+title = "Complete graph identity"
+statement = """
+A graph hash is the full lowercase SHA-256 identity hash of the versioned \
+graph config identity document; its payload contains every ordered static \
+graph-config field, including concrete graph-variable values, and contains no \
+runtime inputs, node outputs, provenance, or orchestration state."""
+rationale = """
+The identifier must change whenever executable static configuration changes \
+and remain stable across runs of that same configuration. Truncation, omitted \
+static fields, or runtime fields would respectively weaken uniqueness, create \
+identity collisions, or confuse configuration identity with run identity."""
+date = "2026-08-05"
+check = "uv run pytest tests/identity"
+
+[[contracts]]
+title = "Deterministic caller-supplied interpretation"
+statement = """
+A graph run visits nodes in deterministic topological order, resolves each \
+runnable node's declared inputs, and invokes the caller-supplied node runner \
+once for each runnable node that is not completed; failed dependencies block \
+their downstream nodes."""
+rationale = """
+The graph layer owns traversal and wiring while the caller owns node behavior. \
+A stable order makes equivalent runs inspectable and reproducible without \
+teaching the graph layer any domain-specific dispatch."""
+date = "2026-08-05"
+check = "uv run pytest tests/execution"
+
+[[contracts]]
+title = "Completed outputs validated before execution"
+statement = """
+All caller-supplied completed node outputs are validated before any node runner \
+invocation: each id names a graph node, each value is a valid node output that \
+contains every declared output field, and the completed set is dependency-\
+closed; accepted nodes become successful outcomes and are not invoked."""
+rationale = """
+Partial validation after execution begins could mix trusted new work with an \
+invalid continuation state. Dependency closure ensures every reused output has \
+the reused prerequisites needed to make that state coherent."""
+date = "2026-08-05"
+check = "uv run pytest tests/results/test_continuation.py"
+
+[[contracts]]
+title = "Coherent strict-JSON graph results"
+statement = """
+Direct GraphRunResult construction accepts only strict-JSON boundary values, \
+requires a nonempty outcome mapping whose keys match the outcomes' node ids, \
+and requires execution_order to name every recorded outcome exactly once. The \
+terminal node id must identify a recorded outcome; aggregate status and any \
+terminal error must match that outcome; and success requires every recorded \
+outcome to succeed. execute_graph additionally produces graph-complete outcomes \
+in deterministic topological order and selects terminal_output from the \
+configured terminal node's primary output field."""
+rationale = """
+Results cross serialization boundaries and must remain persistable without \
+lossy coercion. Without a GraphConfig, the result model cannot prove graph \
+membership, topological order, or that terminal_output equals the configured \
+primary output; those graph-aware guarantees belong to execute_graph. Direct \
+construction instead rejects contradictions that its recorded evidence can \
+establish on its own."""
+date = "2026-08-05"
+check = "uv run --locked pytest tests/results/test_graph_runs.py tests/results/test_json_boundaries.py tests/results/test_node_outcomes.py tests/results/test_failure_diagnostics.py tests/execution/test_interpreter.py"
+
+[[contracts]]
+title = "Callers own orchestration and domain behavior"
+statement = """
+Callers own node-type behavior, scheduling, retries, persistence, durability, \
+provider and domain semantics, provenance content, and attempt-evidence \
+storage; dr-graph owns graph structure, identity, deterministic traversal, \
+input resolution, result shapes, and references to caller-owned evidence."""
+rationale = """
+Embedding orchestration or domain policy in the graph package would couple a \
+general graph contract to one execution platform. The injected node runner \
+and reference-only evidence boundary keep those responsibilities explicit."""
+date = "2026-08-05"

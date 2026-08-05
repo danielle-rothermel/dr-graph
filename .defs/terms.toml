@@ -1,0 +1,271 @@
+#:schema ./terms.schema.json
+
+# Shared vocabulary for dr-graph. See terms.schema.json for the entry schema
+# and the danielle-defs skill for authoring rules.
+
+[[terms]]
+name = "node"
+definition = """
+One component of a graph, with declared input and output fields and connections \
+that route values between components. Node definitions and node configs are \
+the declarative and concrete forms of this concept."""
+
+[[terms]]
+name = "directed acyclic graph"
+definition = """
+A set of nodes joined by directed dependency edges with no cycle, so following \
+dependencies can never return to the starting node."""
+
+[[terms]]
+name = "topological order"
+definition = """
+A linear ordering of a directed acyclic graph in which every node appears \
+after all nodes it depends on. When more than one node is ready, node identity \
+determines a stable order."""
+
+[[terms]]
+name = "sink node"
+definition = """
+A node whose output no other node in the same graph consumes."""
+is_a = ["node"]
+
+[[terms]]
+name = "node runner callback"
+definition = """
+Caller-supplied behavior that receives one runnable node and its resolved \
+inputs and returns that node's output. It is the boundary through which domain \
+behavior enters a graph run."""
+exported_symbols = ["RunNode"]
+
+[[terms]]
+name = "graph"
+definition = """
+A directed acyclic composition of nodes whose connections route outputs to \
+inputs. Graph definitions describe reusable shapes and graph configs describe \
+concrete executable configurations."""
+is_a = ["directed acyclic graph"]
+
+[[terms]]
+name = "graph definition"
+definition = """
+A versioned graph shape that declares node definitions, their connections, \
+required graph variables, and one terminal node. It can be materialized into \
+different graph configs by supplying concrete variable values."""
+exported_symbols = ["GraphDefinition"]
+is_a = ["graph"]
+
+[[terms]]
+name = "node definition"
+definition = """
+The declaration of one node within a graph definition, including its identity \
+within the graph, input and output fields, input sources, selected output, and \
+required graph-variable names."""
+exported_symbols = ["NodeDefinition"]
+is_a = ["node"]
+part_of = ["graph definition"]
+
+[[terms]]
+name = "graph config"
+definition = """
+A concrete, fully bound and validated graph whose complete static structure \
+determines its identity. It contains node configs and identifies exactly one \
+terminal node."""
+exported_symbols = ["GraphConfig"]
+is_a = ["graph"]
+
+[[terms]]
+name = "node config"
+definition = """
+A concrete validated node within a graph config. It carries the node's graph-\
+local identity, declared fields, input sources, selected output, node-type \
+reference, and bound graph-variable values."""
+exported_symbols = ["NodeConfig"]
+is_a = ["node"]
+part_of = ["graph config"]
+
+[[terms]]
+name = "node field"
+definition = """
+A named input or output in a node's declared interface, with an open type \
+label and optional description. One declared output is selected as the \
+node's primary output."""
+exported_symbols = ["NodeFieldSpec", "FieldRole"]
+part_of = ["node definition", "node config"]
+
+[[terms]]
+name = "node input source"
+definition = """
+The graph wiring that binds one declared node input to either a graph external \
+input or an upstream node output. It may select a named upstream field or the \
+upstream node's primary output."""
+exported_symbols = [
+  "NodeInputSourceRef",
+  "NodeInputSourceKind",
+  "as_node_input_source_ref",
+]
+part_of = ["node definition", "node config"]
+
+[[terms]]
+name = "graph external input"
+definition = """
+A runtime value supplied to a graph run from outside the graph and routed to \
+one or more node inputs. It does not participate in graph-config identity."""
+exported_symbols = ["validate_graph_external_inputs"]
+part_of = ["graph run"]
+
+[[terms]]
+name = "strict JSON value"
+definition = """
+A value composed recursively only of null, booleans, strings, finite numbers, \
+lists, and string-keyed objects. Unsupported runtime values, non-string object \
+keys, and non-finite numbers are rejected rather than coerced."""
+
+[[terms]]
+name = "graph variable"
+definition = """
+A named static configuration slot declared by a node definition and bound to \
+one concrete value in a node config. Its bound value participates in graph-\
+config identity and is not a runtime node input."""
+part_of = ["node definition", "node config"]
+
+[[terms]]
+name = "graph materialization"
+definition = """
+The construction of a graph config from a graph definition by binding one \
+concrete value to every declared graph variable and rejecting missing, extra, \
+or misaddressed assignments."""
+
+[[terms]]
+name = "graph config identity payload"
+definition = """
+The selection of every static graph-config field that determines graph \
+identity, excluding runtime inputs, outputs, provenance, and orchestration \
+state. The selection becomes identity-bearing only after strict-JSON \
+validation within its versioned document."""
+exported_symbols = ["graph_config_identity_payload"]
+part_of = ["graph config identity document"]
+
+[[terms]]
+name = "graph config identity document"
+definition = """
+A versioned identity envelope containing the graph config identity payload \
+together with the schema name and schema version that define its meaning."""
+exported_symbols = [
+  "graph_config_identity_document",
+  "GRAPH_CONFIG_IDENTITY_SCHEMA",
+  "GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION",
+]
+
+[[terms]]
+name = "graph hash"
+definition = """
+The deterministic, untruncated identity hash of a graph config's complete \
+versioned identity document. It identifies static executable configuration, \
+not any particular graph run."""
+exported_symbols = ["graph_hash"]
+
+[[terms]]
+name = "graph run"
+definition = """
+The deterministic interpretation of one graph config with graph external \
+inputs, optional completed node outputs, and a node runner callback. It \
+produces one node outcome per node and one aggregate graph run result."""
+exported_symbols = ["execute_graph", "resolve_node_inputs"]
+
+[[terms]]
+name = "node output"
+definition = """
+A strict-JSON object containing the values produced by a successful node and \
+optional strict-JSON metadata about that production."""
+exported_symbols = ["NodeOutput"]
+part_of = ["node outcome"]
+
+[[terms]]
+name = "completed node output"
+definition = """
+A caller-supplied prior node output accepted as already successful for one \
+node in a graph run. Completed outputs must name graph nodes, cover declared \
+outputs, and form a dependency-closed set."""
+is_a = ["node output"]
+part_of = ["graph run"]
+
+[[terms]]
+name = "node outcome"
+definition = """
+One node's terminal state in a graph run: successful with a node output, \
+failed with diagnostics, or blocked by unsuccessful dependencies. Exactly \
+one of those evidence shapes accompanies the state."""
+exported_symbols = ["NodeOutcome", "NodeOutcomeStatus"]
+part_of = ["graph run result"]
+
+[[terms]]
+name = "terminal node"
+definition = """
+The designated unique sink node of a graph. Its primary output becomes the \
+graph output when it succeeds, and its non-success determines the aggregate \
+graph-run status otherwise."""
+is_a = ["sink node"]
+
+[[terms]]
+name = "graph output"
+definition = """
+The primary-output value of a successful graph run's terminal node. The full \
+terminal node output remains available through its node outcome."""
+part_of = ["graph run result"]
+
+[[terms]]
+name = "graph run result"
+definition = """
+The coherent strict-JSON result of one graph run, containing its graph hash, \
+external inputs, per-node outcomes, execution order, terminal state, optional \
+evidence references, and provenance."""
+exported_symbols = ["GraphRunResult", "GraphRunStatus"]
+
+[[terms]]
+name = "graph run provenance"
+definition = """
+Caller-supplied strict-JSON metadata describing how a graph run was produced. \
+It accompanies the graph run result but does not participate in graph-config \
+identity or node outcomes."""
+part_of = ["graph run result"]
+
+[[terms]]
+name = "graph assembly"
+definition = """
+The programmatic construction of validated node configs and graph configs \
+from concise declarations. Assembly changes no graph semantics and produces \
+the same configuration shapes as direct construction."""
+exported_symbols = ["node", "graph"]
+
+[[terms]]
+name = "subgraph composition"
+definition = """
+A graph-assembly operation that embeds a graph's nodes into a larger graph by \
+namespacing their identities, preserving internal connections, and optionally \
+rewiring external inputs."""
+exported_symbols = ["inline_subgraph"]
+is_a = ["graph assembly"]
+
+[[terms]]
+name = "graph failure diagnostics"
+definition = """
+Structured descriptions of node and terminal failures recognized or carried \
+by graph results. Result-carried snapshots use strict JSON and retain stable \
+classification and metadata when available while leaving fuller attempt \
+evidence in caller-owned systems."""
+exported_symbols = ["ClassifiedFailure", "NodeError", "TerminalError"]
+part_of = ["graph run result"]
+
+[[terms]]
+name = "graph error"
+definition = """
+A typed exception reporting invalid graph structure, unresolved inputs, \
+invalid node execution output, or invalid completed output. Node-behavior \
+failures become node outcomes rather than escaping the graph run as errors."""
+exported_symbols = [
+  "GraphExecutionError",
+  "GraphValidationError",
+  "InputResolutionError",
+  "NodeExecutionError",
+  "CompletedNodeError",
+]
