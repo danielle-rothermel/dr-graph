@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import (
     BaseModel,
@@ -10,6 +10,11 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
+
+from dr_graph.core.errors import GraphValidationError
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Mapping
 
 EXTERNAL_NAMESPACE = "task"
 REF_SEPARATOR = "."
@@ -107,3 +112,23 @@ class NodeInputSourceRef(BaseModel):
         if self.kind is NodeInputSourceKind.NODE_OUTPUT:
             return self.node_id
         return None
+
+
+def validate_node_output_ref(
+    ref: NodeInputSourceRef,
+    output_names_by_node: Mapping[str, Collection[str]],
+) -> None:
+    """Require node-output references to name an available output."""
+    if ref.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
+        return
+    if ref.node_id not in output_names_by_node:
+        raise GraphValidationError(
+            f"input source {ref.ref!r} points at unknown node {ref.node_id!r}"
+        )
+    if ref.field is None:
+        return
+    if ref.field not in output_names_by_node[ref.node_id]:
+        raise GraphValidationError(
+            f"input source {ref.ref!r} points at unknown field "
+            f"{ref.field!r} on node {ref.node_id!r}"
+        )

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dr_graph.core.errors import GraphValidationError
-from dr_graph.core.input_sources import NodeInputSourceKind
+from dr_graph.core.input_sources import validate_node_output_ref
 from dr_graph.core.topology import (
     topological_order_ids,
     validate_single_terminal_ids,
@@ -12,7 +12,6 @@ from dr_graph.core.topology import (
 if TYPE_CHECKING:
     from dr_graph.configuration.graphs import GraphConfig
     from dr_graph.configuration.nodes import NodeConfig
-    from dr_graph.core.input_sources import NodeInputSourceRef
 
 
 def validate_graph_config(graph: GraphConfig) -> None:
@@ -26,9 +25,13 @@ def validate_graph_config(graph: GraphConfig) -> None:
         raise GraphValidationError(
             f"terminal_node_id {graph.terminal_node_id!r} not in graph"
         )
+    output_names_by_node = {
+        node_id: {field.name for field in source_node.output_fields()}
+        for node_id, source_node in nodes_by_id.items()
+    }
     for node in graph.nodes:
         for ref in node.input_sources.values():
-            validate_node_input_source(ref, nodes_by_id)
+            validate_node_output_ref(ref, output_names_by_node)
     dependencies = _dependencies_by_id(graph.nodes)
     topological_order_ids(node_ids, dependencies)
     validate_single_terminal_ids(
@@ -42,27 +45,6 @@ def _dependencies_by_id(
     nodes: tuple[NodeConfig, ...],
 ) -> dict[str, set[str]]:
     return {node.node_id: node.dependencies() for node in nodes}
-
-
-def validate_node_input_source(
-    ref: NodeInputSourceRef,
-    nodes_by_id: dict[str, NodeConfig],
-) -> None:
-    if ref.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
-        return
-    if ref.node_id not in nodes_by_id:
-        raise GraphValidationError(
-            f"input source {ref.ref!r} points at unknown node {ref.node_id!r}"
-        )
-    if ref.field is None:
-        return
-    source_node = nodes_by_id[ref.node_id]
-    output_names = {field.name for field in source_node.output_fields()}
-    if ref.field not in output_names:
-        raise GraphValidationError(
-            f"input source {ref.ref!r} points at unknown field "
-            f"{ref.field!r} on node {ref.node_id!r}"
-        )
 
 
 def topological_order(nodes: tuple[NodeConfig, ...]) -> tuple[NodeConfig, ...]:

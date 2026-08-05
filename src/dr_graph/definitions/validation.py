@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dr_graph.core.errors import GraphValidationError
-from dr_graph.core.fields import validate_node_fields
-from dr_graph.core.input_sources import validate_ref_identifier
+from dr_graph.core.fields import FieldRole, validate_node_fields
+from dr_graph.core.input_sources import (
+    validate_node_output_ref,
+    validate_ref_identifier,
+)
 from dr_graph.core.topology import (
     topological_order_ids,
     validate_single_terminal_ids,
@@ -48,6 +51,17 @@ def validate_graph_definition(definition: GraphDefinition) -> None:
             raise GraphValidationError(
                 f"node {node_id!r} depends on unknown node(s) {joined}"
             )
+    output_names_by_node = {
+        node.node_id: {
+            field.name
+            for field in node.fields
+            if field.role is FieldRole.OUTPUT
+        }
+        for node in definition.nodes
+    }
+    for node in definition.nodes:
+        for ref in node.input_sources.values():
+            validate_node_output_ref(ref, output_names_by_node)
     topological_order_ids(node_ids, dependencies)
     validate_single_terminal_ids(
         node_ids,
