@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from dr_serialize import Jsonable, StrictJsonError
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 
 from dr_graph.core.json_values import strict_json_object
@@ -102,4 +102,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
             "underlying_exception_type",
             _exception_type_name(_root_exception(error)),
         )
-    return result
+    try:
+        return strict_json_object(result)
+    except StrictJsonError:
+        return {}

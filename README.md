@@ -156,8 +156,8 @@ class GraphRunStatus(StrEnum):
 
 ```python
 class NodeOutput(BaseModel):
-    values: dict[str, Any]
-    metadata: dict[str, Any]
+    values: dict[str, Jsonable]
+    metadata: dict[str, Jsonable]
 
 
 class NodeOutcome(BaseModel):
@@ -171,11 +171,12 @@ class NodeOutcome(BaseModel):
 ```python
 class GraphRunResult(BaseModel):
     graph_hash: str
-    external_inputs: dict[str, Any]
+    external_inputs: dict[str, Jsonable]
     status: GraphRunStatus
     outcomes: dict[str, NodeOutcome]
     execution_order: tuple[str, ...]
     terminal_node_id: str
-    terminal_output: Any | None
+    terminal_output: Jsonable
     terminal_error: TerminalError | None
+    provenance: dict[str, Jsonable]
 ```
