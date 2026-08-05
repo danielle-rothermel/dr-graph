@@ -7,7 +7,7 @@ from typing import Any, Protocol, runtime_checkable
 from dr_serialize import Jsonable, StrictJsonError
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 
-from dr_graph.core.json_values import strict_json_object
+from dr_graph.core.json_values import strict_json_object, strict_json_value
 
 
 @runtime_checkable
@@ -96,13 +96,18 @@ def _root_exception(error: BaseException) -> BaseException:
 
 def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
     metadata = getattr(error, "metadata", None)
-    result = dict(metadata) if isinstance(metadata, Mapping) else {}
+    result: dict[str, Jsonable] = {}
+    if isinstance(metadata, Mapping):
+        for key, value in metadata.items():
+            if not isinstance(key, str):
+                continue
+            try:
+                result[key] = strict_json_value(value)
+            except StrictJsonError:
+                continue
     if getattr(error, "underlying", None) is not None:
         result.setdefault(
             "underlying_exception_type",
             _exception_type_name(_root_exception(error)),
         )
-    try:
-        return strict_json_object(result)
-    except StrictJsonError:
-        return {}
+    return result
