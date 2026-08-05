@@ -22,8 +22,8 @@ behavior.
   interprets a graph in topological order while delegating node behavior to
   the caller.
 - **[Results](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/results)**
-  models per-node and graph-level outcomes, including partial runs that can be
-  continued from completed nodes.
+  models per-node and graph-level outcomes, including reuse of completed node
+  outputs when continuing execution.
 - **Infra**
   - **[Assembly](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/assembly)**
     creates graphs programmatically, including deterministic namespacing and
@@ -116,8 +116,8 @@ def graph_hash(graph: GraphConfig) -> str: ...
 ## Execution
 
 Execution owns graph traversal and dependency wiring while the caller owns
-node behavior. Completed node outputs may be supplied to continue a partial
-run.
+node behavior. A dependency-closed set of completed node outputs may be
+supplied to continue execution.
 
 ```python
 type RunNode = Callable[
@@ -152,7 +152,6 @@ class GraphRunStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
-    PARTIAL = "partial"
 ```
 
 ```python

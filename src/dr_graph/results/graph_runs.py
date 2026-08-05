@@ -27,7 +27,6 @@ class GraphRunStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
-    PARTIAL = "partial"
 
 
 class TerminalError(BaseModel):
@@ -115,7 +114,7 @@ class GraphRunResult(BaseModel):
                 "terminal_output and terminal_error"
             )
 
-        if self.status in (GraphRunStatus.SUCCESS, GraphRunStatus.PARTIAL):
+        if self.status is GraphRunStatus.SUCCESS:
             if self.terminal_error is not None:
                 raise ValueError(
                     f"{self.status.value} graph runs cannot include "
@@ -177,10 +176,7 @@ def build_graph_run_result(
     return GraphRunResult(
         graph_hash=graph_hash_value,
         external_inputs=dict(inputs),
-        status=_graph_status(
-            terminal=terminal,
-            outcomes=outcomes,
-        ),
+        status=_graph_status(terminal=terminal),
         outcomes=outcomes,
         execution_order=execution_order,
         terminal_node_id=graph.terminal_node_id,
@@ -192,15 +188,9 @@ def build_graph_run_result(
 def _graph_status(
     *,
     terminal: NodeOutcome,
-    outcomes: Mapping[str, NodeOutcome],
 ) -> GraphRunStatus:
     if terminal.status is not NodeOutcomeStatus.SUCCESS:
         if terminal.status is NodeOutcomeStatus.BLOCKED:
             return GraphRunStatus.BLOCKED
         return GraphRunStatus.ERROR
-    if any(
-        outcome.status is not NodeOutcomeStatus.SUCCESS
-        for outcome in outcomes.values()
-    ):
-        return GraphRunStatus.PARTIAL
     return GraphRunStatus.SUCCESS

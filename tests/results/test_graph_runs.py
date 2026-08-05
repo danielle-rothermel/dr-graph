@@ -164,21 +164,6 @@ def _minimal_result_kwargs() -> dict[str, Any]:
     return {"graph_hash": "0" * 64}
 
 
-def test_partial_status_result_is_constructible_directly() -> None:
-    """PARTIAL is a valid Result status even though single-sink execution
-    does not currently produce it."""
-    outcome = NodeOutcome.success(node_id="direct", output=_output("ok"))
-    result = GraphRunResult(
-        **_minimal_result_kwargs(),
-        status=GraphRunStatus.PARTIAL,
-        outcomes={"direct": outcome},
-        execution_order=("direct",),
-        terminal_node_id="direct",
-        terminal_output="ok",
-    )
-    assert result.status is GraphRunStatus.PARTIAL
-
-
 def test_terminal_error_rejects_success_status() -> None:
     with pytest.raises(ValueError, match="must be error or blocked"):
         TerminalError(
@@ -329,15 +314,6 @@ def _terminal_error(
     [
         (
             GraphRunStatus.SUCCESS,
-            {
-                "terminal_error": _terminal_error(
-                    status=NodeOutcomeStatus.ERROR
-                ),
-            },
-            "cannot include terminal_error",
-        ),
-        (
-            GraphRunStatus.PARTIAL,
             {
                 "terminal_error": _terminal_error(
                     status=NodeOutcomeStatus.ERROR

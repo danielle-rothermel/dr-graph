@@ -40,4 +40,15 @@ def validated_completed_outputs(
                 f"field {output_field!r}"
             )
         outputs[node_id] = output
+    completed_ids = outputs.keys()
+    for node_id in outputs:
+        missing_dependencies = sorted(
+            graph.node(node_id).dependencies() - completed_ids
+        )
+        if missing_dependencies:
+            joined = ", ".join(repr(item) for item in missing_dependencies)
+            raise CompletedNodeError(
+                f"completed node {node_id!r} requires completed node(s) "
+                f"{joined}"
+            )
     return outputs
