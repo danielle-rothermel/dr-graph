@@ -17,6 +17,7 @@ from dr_graph import (
     graph,
     node,
 )
+from tests.core.support import _graph, _node
 
 
 def _encdec():
@@ -196,6 +197,32 @@ def test_completed_output_missing_declared_field_rejected() -> None:
             inputs={"prompt": "p"},
             run_node=lambda node_config, inputs: {"values": {}},
             completed={"encoder": {"values": {"wrong_field": "d"}}},
+        )
+
+
+def test_completed_output_missing_secondary_field_rejected() -> None:
+    multiple_outputs = _graph(
+        _node(
+            "producer",
+            output_field="primary",
+            output_fields=("primary", "secondary"),
+        ),
+        terminal_node_id="producer",
+    )
+
+    with pytest.raises(CompletedNodeError, match="secondary"):
+        execute_graph(
+            graph=multiple_outputs,
+            inputs={},
+            run_node=lambda node_config, inputs: {
+                "values": {
+                    "primary": "unexpected",
+                    "secondary": "unexpected",
+                }
+            },
+            completed={
+                "producer": {"values": {"primary": "completed"}},
+            },
         )
 
 

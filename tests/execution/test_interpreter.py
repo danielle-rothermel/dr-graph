@@ -143,6 +143,62 @@ def test_missing_returned_output_field_becomes_node_execution_error() -> None:
     )
 
 
+def test_missing_secondary_output_becomes_producer_execution_error() -> None:
+    graph = _graph(
+        _node(
+            "producer",
+            output_field="primary",
+            output_fields=("primary", "secondary"),
+        ),
+        terminal_node_id="producer",
+    )
+
+    result = execute_graph(
+        graph=graph,
+        inputs={},
+        run_node=lambda node, inputs: NodeOutput(
+            values={"primary": "present"}
+        ),
+    )
+
+    outcome = result.outcomes["producer"]
+    assert result.status is GraphRunStatus.ERROR
+    assert outcome.status is NodeOutcomeStatus.ERROR
+    assert outcome.error is not None
+    assert outcome.error.error_type == (
+        f"{NodeExecutionError.__module__}.{NodeExecutionError.__qualname__}"
+    )
+    assert "secondary" in outcome.error.message
+
+
+def test_all_declared_outputs_are_available_to_downstream_nodes() -> None:
+    graph = _graph(
+        _node(
+            "producer",
+            output_field="primary",
+            output_fields=("primary", "secondary"),
+        ),
+        _node(
+            "consumer",
+            input_sources={"value": "producer.secondary"},
+            output_field="result",
+        ),
+        terminal_node_id="consumer",
+    )
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "producer":
+            return NodeOutput(
+                values={"primary": "default", "secondary": "named"}
+            )
+        return NodeOutput(values={"result": f"used {inputs['value']}"})
+
+    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    assert result.status is GraphRunStatus.SUCCESS
+    assert result.terminal_output == "used named"
+
+
 def test_node_exception_captures_persistable_error() -> None:
     graph = _graph(_node("direct"), terminal_node_id="direct")
     error = PermanentFailureError(

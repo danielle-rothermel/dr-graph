@@ -47,6 +47,7 @@ def _node(
     *,
     input_sources: dict[str, str] | None = None,
     output_field: str = "output",
+    output_fields: tuple[str, ...] | None = None,
 ) -> NodeConfig:
     sources = {
         name: NodeInputSourceRef.model_validate(ref)
@@ -55,7 +56,10 @@ def _node(
     fields = [
         NodeFieldSpec(name=name, role=FieldRole.INPUT) for name in sources
     ]
-    fields.append(NodeFieldSpec(name=output_field, role=FieldRole.OUTPUT))
+    fields.extend(
+        NodeFieldSpec(name=name, role=FieldRole.OUTPUT)
+        for name in (output_fields or (output_field,))
+    )
     return NodeConfig(
         node_id=node_id,
         node_type="llm_call",
