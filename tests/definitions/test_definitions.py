@@ -223,3 +223,37 @@ def test_definition_rejects_unknown_dependency() -> None:
             ),
             terminal_node_id="a",
         )
+
+
+def test_definition_rejects_unknown_named_output() -> None:
+    with pytest.raises(ValueError, match="points at unknown field 'missing'"):
+        GraphDefinition(
+            nodes=(
+                NodeDefinition(
+                    node_id="producer",
+                    node_type="llm_call",
+                    fields=(
+                        NodeFieldSpec(
+                            name="actual",
+                            role=FieldRole.OUTPUT,
+                        ),
+                    ),
+                    output_field="actual",
+                ),
+                NodeDefinition(
+                    node_id="consumer",
+                    node_type="llm_call",
+                    fields=(
+                        NodeFieldSpec(name="value", role=FieldRole.INPUT),
+                        NodeFieldSpec(name="result", role=FieldRole.OUTPUT),
+                    ),
+                    input_sources={
+                        "value": NodeInputSourceRef.model_validate(
+                            "producer.missing"
+                        )
+                    },
+                    output_field="result",
+                ),
+            ),
+            terminal_node_id="consumer",
+        )
