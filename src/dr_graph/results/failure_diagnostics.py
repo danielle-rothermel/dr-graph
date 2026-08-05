@@ -47,19 +47,29 @@ class NodeError(BaseModel):
     def from_exception(cls, error: BaseException) -> NodeError:
         return cls(
             error_type=_exception_error_type(error),
-            message=str(error),
+            message=_exception_message(error),
             failure_class=_exception_failure_class(error),
             metadata=_exception_metadata(error),
         )
 
 
+_MISSING_ATTRIBUTE = object()
+
+
+def _exception_attribute(error: object, name: str) -> object:
+    try:
+        return getattr(error, name, _MISSING_ATTRIBUTE)
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return _MISSING_ATTRIBUTE
+
+
 def _exception_failure_class(error: BaseException) -> str | None:
-    failure_class = getattr(error, "failure_class", None)
+    failure_class = _exception_attribute(error, "failure_class")
     if isinstance(failure_class, StrEnum):
         return failure_class.value
     if isinstance(failure_class, str):
         return failure_class
-    failure_class = getattr(type(error), "failure_class", None)
+    failure_class = _exception_attribute(type(error), "failure_class")
     if isinstance(failure_class, StrEnum):
         return failure_class.value
     if isinstance(failure_class, str):
@@ -68,10 +78,17 @@ def _exception_failure_class(error: BaseException) -> str | None:
 
 
 def _exception_error_type(error: BaseException) -> str:
-    error_type = getattr(error, "error_type", None)
+    error_type = _exception_attribute(error, "error_type")
     if isinstance(error_type, str):
         return error_type
     return f"{type(error).__module__}.{type(error).__qualname__}"
+
+
+def _exception_message(error: BaseException) -> str:
+    try:
+        return str(error)
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return _exception_type_name(error)
 
 
 def _exception_type_name(error: BaseException) -> str:
@@ -83,7 +100,7 @@ def _root_exception(error: BaseException) -> BaseException:
     visited: set[int] = set()
     while True:
         visited.add(id(current))
-        underlying = getattr(current, "underlying", None)
+        underlying = _exception_attribute(current, "underlying")
         if (
             not isinstance(underlying, BaseException)
             or id(underlying) in visited
@@ -93,7 +110,7 @@ def _root_exception(error: BaseException) -> BaseException:
 
 
 def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
-    metadata = getattr(error, "metadata", None)
+    metadata = _exception_attribute(error, "metadata")
     result: dict[str, Jsonable] = {}
     if isinstance(metadata, Mapping):
         for key, value in metadata.items():
@@ -103,7 +120,8 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
                 result[key] = strict_json_value(value)
             except StrictJsonError:
                 continue
-    if getattr(error, "underlying", None) is not None:
+    underlying = _exception_attribute(error, "underlying")
+    if isinstance(underlying, BaseException):
         result.setdefault(
             "underlying_exception_type",
             _exception_type_name(_root_exception(error)),

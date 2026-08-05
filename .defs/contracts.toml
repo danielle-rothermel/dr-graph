@@ -79,12 +79,15 @@ requires a nonempty outcome mapping whose keys match the outcomes' node ids, \
 and requires execution_order to name every recorded outcome exactly once. The \
 terminal node id must identify a recorded outcome; aggregate status and any \
 terminal error must match that outcome; and success requires every recorded \
-outcome to succeed. execute_graph additionally produces graph-complete outcomes \
-in deterministic topological order and selects terminal_output from the \
-configured terminal node's primary output field."""
+outcome to succeed. execute_graph validates and snapshots external inputs before \
+invoking any node, produces graph-complete outcomes in deterministic topological \
+order, and selects terminal_output from the configured terminal node's primary \
+output field."""
 rationale = """
 Results cross serialization boundaries and must remain persistable without \
-lossy coercion. Without a GraphConfig, the result model cannot prove graph \
+lossy coercion; rejecting invalid inputs before execution prevents side effects \
+that cannot produce a valid result. Without a GraphConfig, the result model \
+cannot prove graph \
 membership, topological order, or that terminal_output equals the configured \
 primary output; those graph-aware guarantees belong to execute_graph. Direct \
 construction instead rejects contradictions that its recorded evidence can \

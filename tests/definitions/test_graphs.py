@@ -43,6 +43,17 @@ def test_definition_enforces_single_terminal() -> None:
         )
 
 
+def test_definition_rejects_unsupported_schema_version() -> None:
+    with pytest.raises(ValueError, match="Input should be 1"):
+        GraphDefinition.model_validate(
+            {
+                "schema_version": 2,
+                "nodes": (_topology_node("direct"),),
+                "terminal_node_id": "direct",
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("nodes", "terminal_node_id", "error_match"),
     [

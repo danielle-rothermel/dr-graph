@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
-    StrictInt,
     StrictStr,
     model_validator,
 )
@@ -25,7 +24,7 @@ if TYPE_CHECKING:
 class GraphDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: StrictInt = 1
+    schema_version: Literal[1] = 1
     nodes: tuple[NodeDefinition, ...]
     terminal_node_id: StrictStr
 

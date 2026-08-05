@@ -31,6 +31,22 @@ class FullyClassifiedError(Exception):
         self.underlying: BaseException | None = ValueError("root")
 
 
+class BrokenDiagnosticAttributeError(Exception):
+    def __init__(self, broken_attribute: str) -> None:
+        super().__init__("boom")
+        self.broken_attribute = broken_attribute
+        self.failure_class = "transient"
+        self.error_type = "example.Boom"
+        self.metadata = {"provider": "test"}
+        self.underlying = ValueError("root")
+
+    def __getattribute__(self, name: str) -> Any:
+        broken_attribute = object.__getattribute__(self, "broken_attribute")
+        if name == broken_attribute:
+            raise RuntimeError(f"{name} accessor failed")
+        return super().__getattribute__(name)
+
+
 def _execute_raising_node(error: BaseException) -> GraphRunResult:
     graph = _graph(_node("direct"), terminal_node_id="direct")
 
@@ -68,6 +84,40 @@ def test_unclassified_exception_gets_defaults() -> None:
     assert error.error_type == "builtins.ValueError"
     assert error.failure_class is None
     assert error.metadata == {}
+
+
+@pytest.mark.parametrize(
+    "broken_attribute",
+    ["error_type", "failure_class", "metadata", "underlying"],
+)
+def test_broken_diagnostic_attribute_does_not_escape_execution(
+    broken_attribute: str,
+) -> None:
+    result = _execute_raising_node(
+        BrokenDiagnosticAttributeError(broken_attribute)
+    )
+
+    outcome = result.outcomes["direct"]
+    assert result.status is GraphRunStatus.ERROR
+    assert outcome.error is not None
+    if broken_attribute != "metadata":
+        assert outcome.error.metadata.get("provider") == "test"
+    if broken_attribute != "underlying":
+        assert outcome.error.metadata.get("underlying_exception_type") == (
+            "builtins.ValueError"
+        )
+
+
+def test_unprintable_exception_does_not_escape_execution() -> None:
+    class UnprintableError(Exception):
+        def __str__(self) -> str:
+            raise RuntimeError("message conversion failed")
+
+    result = _execute_raising_node(UnprintableError())
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.message.endswith(".UnprintableError")
 
 
 @pytest.mark.parametrize(

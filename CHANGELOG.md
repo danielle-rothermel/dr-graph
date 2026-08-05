@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reorganized source and tests into functional subpackages while preserving the root `dr_graph` facade; retired flat internal import paths are no longer provided.
-- Strengthened definition, execution, continuation, and result validation with named-output checks, dependency-closed completed outputs, complete callback outputs, strict JSON boundaries, and coherent graph-run outcomes.
-- Made callback failure normalization cycle-safe while preserving each valid metadata entry independently.
+- Strengthened definition, execution, continuation, and result validation with a closed definition schema version, named-output checks, dependency-closed completed outputs, complete callback outputs, pre-execution strict JSON inputs, and coherent graph-run outcomes.
+- Made callback failure normalization cycle-safe and non-throwing for faulty diagnostic accessors while preserving each valid metadata entry independently.
 - Updated the serialization contract dependency to `dr-serialize>=0.1.2,<0.2.0`.
 - Replaced the README with a functional package map and current public contract sketches.
 - Audited repository documentation and retained only succinct, non-obvious docstrings and comments.

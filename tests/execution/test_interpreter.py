@@ -148,3 +148,45 @@ def test_unhashable_graph_raises_before_run_node_is_invoked() -> None:
         execute_graph(graph=graph, inputs={}, run_node=run_node)
 
     assert invoked == []
+
+
+def test_invalid_external_inputs_raise_before_run_node_is_invoked() -> None:
+    graph = _graph(_node("direct"), terminal_node_id="direct")
+    invoked: list[str] = []
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        invoked.append(node.node_id)
+        return _output("unreachable")
+
+    with pytest.raises(StrictJsonError):
+        execute_graph(
+            graph=graph,
+            inputs={"unused": object()},
+            run_node=run_node,
+        )
+
+    assert invoked == []
+
+
+def test_external_inputs_are_snapshotted_before_node_invocation() -> None:
+    graph = _graph(
+        _node("direct", input_sources={"payload": "task.payload"}),
+        terminal_node_id="direct",
+    )
+    inputs = {"payload": {"items": []}}
+
+    def run_node(
+        node: NodeConfig,
+        node_inputs: Mapping[str, Any],
+    ) -> NodeOutput:
+        payload = node_inputs["payload"]
+        assert isinstance(payload, dict)
+        items = payload["items"]
+        assert isinstance(items, list)
+        items.append("mutated")
+        return _output("done")
+
+    result = execute_graph(graph=graph, inputs=inputs, run_node=run_node)
+
+    assert inputs == {"payload": {"items": ["mutated"]}}
+    assert result.external_inputs == {"payload": {"items": []}}

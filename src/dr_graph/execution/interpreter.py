@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from dr_graph.core.json_values import strict_json_object
 from dr_graph.execution.input_resolution import resolve_node_inputs
 from dr_graph.execution.node_invocation import RunNode, invoke_node
 from dr_graph.identity.graph_config import graph_hash
@@ -28,6 +30,7 @@ def execute_graph(
     completed: Mapping[str, NodeOutput | Mapping[str, Any]] | None = None,
 ) -> GraphRunResult:
     computed_graph_hash = graph_hash(graph)
+    external_inputs = deepcopy(strict_json_object(dict(inputs)))
     completed_outputs = validated_completed_outputs(
         graph=graph,
         completed=completed,
@@ -79,7 +82,7 @@ def execute_graph(
         graph=graph,
         outcomes=outcomes,
         execution_order=tuple(execution_order),
-        inputs=inputs,
+        inputs=external_inputs,
         graph_hash_value=computed_graph_hash,
     )
 

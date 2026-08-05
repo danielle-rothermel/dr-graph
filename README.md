@@ -51,7 +51,7 @@ class NodeDefinition(BaseModel):
 
 
 class GraphDefinition(BaseModel):
-    schema_version: int
+    schema_version: Literal[1] = 1
     nodes: tuple[NodeDefinition, ...]
     terminal_node_id: str
 ```
