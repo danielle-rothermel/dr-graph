@@ -1,86 +1,182 @@
 # dr-graph
 
-Hashable computation-graph configs plus a pure, deterministic
-interpreter. Not a workflow engine.
+[![CI](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/dr-graph.svg)](https://pypi.org/project/dr-graph/)
 
-The rule this library exists to serve: **whatever is searched over must
-be data; whatever does the searching is code.** Graph configs are the
-searched-over layer — the motivating use case is experiment conditions
-and optimizer genomes. Optimizers and durable workflows are ordinary
-code that read and write these configs.
+| [Terms and contracts](https://danielle-rothermel.github.io/dr-graph/) | [Terms TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/terms.toml) | [Contracts TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/contracts.toml) | [dr-serialize](https://github.com/danielle-rothermel/dr-serialize) |
+| --- | --- | --- | --- |
 
-The [vocabulary sheet](https://danielle-rothermel.github.io/dr-graph/)
-(source: `.defs/vocab.html`) is the authoritative contract: the terms,
-guarantees, scope boundaries, and the mapping from each term to the
-exported names. This README orients; the sheet decides.
+**dr-graph represents hashable computation graphs as data and interprets them
+deterministically.** Graph structure is separate from caller-supplied node
+behavior.
 
-## What it provides
+- **[Definitions](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/definitions)**
+  describe reusable graph topology, node fields, dependencies, and variable
+  requirements.
+- **[Configuration](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/configuration)**
+  models concrete variable values and validates the resulting graph.
+- **[Identity](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/identity)**
+  gives every complete graph configuration a stable, versioned identity.
+- **[Execution](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/execution)**
+  interprets a graph in topological order while delegating node behavior to
+  the caller.
+- **[Results](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/results)**
+  models per-node and graph-level outcomes, including reuse of completed node
+  outputs when continuing execution.
+- **Infra**
+  - **[Assembly](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/assembly)**
+    creates graphs programmatically, including deterministic namespacing and
+    rewiring of subgraphs.
+  - **[Core](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/core)**
+    contains shared errors, field and input-source models, topology helpers,
+    and strict-JSON validation.
 
-- **`GraphDefinition` / `NodeDefinition`** — a versioned,
-  variable-bearing DAG shape that `materialize()`s fully-set
-  `GraphConfig`s from per-node Variable assignments.
-- **`GraphConfig` / `NodeConfig`** — the flat, validated config that a
-  graph hash identifies; construction enforces the structural
-  guarantees (acyclicity, exactly one terminal node, input-source
-  legality).
-- **`graph_hash()`** — the config's identity, computed through
-  dr-serialize's identity API; the sheet defines its exact coverage
-  and format.
-- **`execute_graph()`** — pure sequential execution: resolves each
-  node's inputs, calls the injected `run_node` callback, and returns a
-  `GraphRunResult`. An optional `completed` mapping skips
-  already-paid-for nodes on resume.
-- **`node()` / `graph()` / `inline_subgraph()`** — neutral builders and
-  composition by flattening.
+The following sketches show the public contract shapes. Validation and
+implementation details are omitted.
 
-Everything else — durability, retries, scheduling, persistence,
-prompts, providers — belongs to the caller; the sheet draws the exact
-line. Sequential execution is a feature: deterministic order is what
-makes durable-workflow replay line up.
+## Definitions
 
-## Ecosystem
-
-Part of the `dr-*` family: depends on `dr-serialize` (identity
-hashing); consumed by `whetstone-ai`. Neighbor repos are
-`dr-providers`, `dr-platform`, `dr-code`, and `unitbench`.
-
-## Example
+Definitions describe reusable graph topology before concrete variable values
+are supplied. Materialization binds those values and produces an executable
+graph configuration.
 
 ```python
-from dr_graph import execute_graph, graph, node
+class NodeDefinition(BaseModel):
+    node_id: str
+    node_type: str
+    fields: tuple[NodeFieldSpec, ...]
+    input_sources: dict[str, NodeInputSourceRef]
+    output_field: str
+    variable_names: frozenset[str]
 
-config = graph(
-    [
-        node(
-            "encoder",
-            node_type="llm_call",
-            input_sources={"prompt": "task.prompt"},
-            output_field="description",
-        ),
-        node(
-            "decoder",
-            node_type="llm_call",
-            input_sources={"description": "encoder.description"},
-            output_field="code",
-        ),
-    ],
-    terminal="decoder",
-)
 
-result = execute_graph(
-    graph=config,
-    inputs={"prompt": "write an add function"},
-    run_node=lambda node_config, inputs: {
-        "values": {node_config.output_field: "..."}
-    },
-)
+class GraphDefinition(BaseModel):
+    schema_version: Literal[1] = 1
+    nodes: tuple[NodeDefinition, ...]
+    terminal_node_id: str
 ```
 
-## Development
+```python
+def materialize(
+    self,
+    variable_assignments: Mapping[str, Mapping[str, Any]] | None = None,
+) -> GraphConfig: ...
+```
 
-```bash
-uv sync
-uv run pytest
-uv run ruff check .
-uv run ty check
+## Configuration
+
+Configurations are complete, validated graphs with concrete values. Their
+dependency structure has a deterministic topological order.
+
+```python
+class NodeConfig(BaseModel):
+    node_id: str
+    node_type: str
+    fields: tuple[NodeFieldSpec, ...]
+    input_sources: dict[str, NodeInputSourceRef]
+    output_field: str
+    variables: dict[str, Any]
+
+
+class GraphConfig(BaseModel):
+    nodes: tuple[NodeConfig, ...]
+    terminal_node_id: str
+
+    def topological_order(self) -> tuple[NodeConfig, ...]: ...
+```
+
+```python
+def validate_graph_external_inputs(
+    graph: GraphConfig,
+    *,
+    allowed_fields: Collection[str],
+) -> None: ...
+```
+
+## Identity
+
+Every static configuration field participates in a versioned canonical
+identity document. `dr-serialize` turns that document into the graph's full
+SHA-256 hash.
+
+```python
+GRAPH_CONFIG_IDENTITY_SCHEMA = "dr_graph.graph_config"
+GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION = 1
+
+
+def graph_config_identity_document(
+    graph: GraphConfig,
+) -> IdentityDocument: ...
+
+
+def graph_hash(graph: GraphConfig) -> str: ...
+```
+
+## Execution
+
+Execution owns graph traversal and dependency wiring while the caller owns
+node behavior. A dependency-closed set of completed node outputs may be
+supplied to continue execution.
+
+```python
+type RunNode = Callable[
+    [NodeConfig, Mapping[str, Any]],
+    NodeOutput | Mapping[str, Any],
+]
+```
+
+```python
+def execute_graph(
+    *,
+    graph: GraphConfig,
+    inputs: Mapping[str, Any],
+    run_node: RunNode,
+    completed: Mapping[str, NodeOutput | Mapping[str, Any]] | None = None,
+) -> GraphRunResult: ...
+```
+
+## Results
+
+Results distinguish node outcomes from the aggregate graph outcome and retain
+enough structured state to inspect or continue a run.
+
+```python
+class NodeOutcomeStatus(StrEnum):
+    SUCCESS = "success"
+    ERROR = "error"
+    BLOCKED = "blocked"
+
+
+class GraphRunStatus(StrEnum):
+    SUCCESS = "success"
+    ERROR = "error"
+    BLOCKED = "blocked"
+```
+
+```python
+class NodeOutput(BaseModel):
+    values: dict[str, Jsonable]
+    metadata: dict[str, Jsonable]
+
+
+class NodeOutcome(BaseModel):
+    node_id: str
+    status: NodeOutcomeStatus
+    output: NodeOutput | None
+    error: NodeError | None
+    blocked_by: tuple[str, ...]
+```
+
+```python
+class GraphRunResult(BaseModel):
+    graph_hash: str
+    external_inputs: dict[str, Jsonable]
+    status: GraphRunStatus
+    outcomes: dict[str, NodeOutcome]
+    execution_order: tuple[str, ...]
+    terminal_node_id: str
+    terminal_output: Jsonable
+    terminal_error: TerminalError | None
+    attempt_evidence_refs: tuple[str, ...]
+    provenance: dict[str, Jsonable]
 ```

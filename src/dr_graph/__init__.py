@@ -1,30 +1,34 @@
-"""Hashable computation-graph configs and a pure deterministic interpreter."""
-
-from dr_graph.builders import as_node_input_source_ref, graph, node
-from dr_graph.compose import inline_subgraph
-from dr_graph.definition import GraphDefinition, NodeDefinition
-from dr_graph.errors import (
+from dr_graph.assembly import (
+    as_node_input_source_ref,
+    graph,
+    inline_subgraph,
+    node,
+)
+from dr_graph.configuration import (
+    GraphConfig,
+    NodeConfig,
+    validate_graph_external_inputs,
+)
+from dr_graph.core.errors import (
     CompletedNodeError,
     GraphExecutionError,
     GraphValidationError,
     InputResolutionError,
     NodeExecutionError,
 )
-from dr_graph.execution import (
-    RunNode,
-    execute_graph,
-    resolve_node_inputs,
+from dr_graph.core.fields import FieldRole, NodeFieldSpec
+from dr_graph.core.input_sources import (
+    NodeInputSourceKind,
+    NodeInputSourceRef,
 )
-from dr_graph.hashing import (
+from dr_graph.definitions import GraphDefinition, NodeDefinition
+from dr_graph.execution import RunNode, execute_graph, resolve_node_inputs
+from dr_graph.identity import (
     GRAPH_CONFIG_IDENTITY_SCHEMA,
     GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION,
     graph_config_identity_document,
     graph_config_identity_payload,
     graph_hash,
-)
-from dr_graph.refs import (
-    NodeInputSourceKind,
-    NodeInputSourceRef,
 )
 from dr_graph.results import (
     ClassifiedFailure,
@@ -36,13 +40,6 @@ from dr_graph.results import (
     NodeOutput,
     TerminalError,
 )
-from dr_graph.spec import (
-    FieldRole,
-    GraphConfig,
-    NodeConfig,
-    NodeFieldSpec,
-)
-from dr_graph.validation import validate_graph_external_inputs
 
 __all__ = [
     "GRAPH_CONFIG_IDENTITY_SCHEMA",

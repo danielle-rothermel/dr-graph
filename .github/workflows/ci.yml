@@ -5,19 +5,40 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     runs-on: depot-ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.2"
           python-version: ${{ matrix.python-version }}
-      - run: uv sync
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run ty check
-      - run: uv run pytest
+          enable-cache: true
+          save-cache: ${{ github.event_name == 'push' }}
+      - run: uv sync --locked
+      - run: uvx tombi@1.2.5 lint .defs/terms.toml .defs/contracts.toml
+      - run: uv run --locked python scripts/check_defs.py
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked ty check
+      - run: uv run --locked pytest
+      - name: Verify wheel installation
+        run: |
+          uv build --wheel
+          uv venv --python "${{ matrix.python-version }}" .wheel-venv
+          uv pip install --python .wheel-venv/bin/python dist/*.whl
+          .wheel-venv/bin/python -c 'import dr_graph; from importlib.resources import files; assert files(dr_graph).joinpath("py.typed").is_file()'

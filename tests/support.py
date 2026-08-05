@@ -1,11 +1,3 @@
-"""Shared test doubles.
-
-`PermanentFailureError` mirrors the shape of an app-side classified
-failure: a class-level `StrEnum` failure class plus instance `underlying`
-and `metadata` attributes, matching the `ClassifiedFailure` protocol the
-runner introspects.
-"""
-
 from __future__ import annotations
 
 from enum import StrEnum
@@ -15,8 +7,10 @@ from dr_graph import (
     FieldRole,
     GraphConfig,
     NodeConfig,
+    NodeError,
     NodeFieldSpec,
     NodeInputSourceRef,
+    NodeOutcomeStatus,
     NodeOutput,
 )
 
@@ -47,6 +41,7 @@ def _node(
     *,
     input_sources: dict[str, str] | None = None,
     output_field: str = "output",
+    output_fields: tuple[str, ...] | None = None,
 ) -> NodeConfig:
     sources = {
         name: NodeInputSourceRef.model_validate(ref)
@@ -55,7 +50,10 @@ def _node(
     fields = [
         NodeFieldSpec(name=name, role=FieldRole.INPUT) for name in sources
     ]
-    fields.append(NodeFieldSpec(name=output_field, role=FieldRole.OUTPUT))
+    fields.extend(
+        NodeFieldSpec(name=name, role=FieldRole.OUTPUT)
+        for name in (output_fields or (output_field,))
+    )
     return NodeConfig(
         node_id=node_id,
         node_type="llm_call",
@@ -76,4 +74,56 @@ def _graph(
     return GraphConfig(
         nodes=nodes,
         terminal_node_id=terminal_node_id,
+    )
+
+
+def encdec_graph() -> GraphConfig:
+    return _graph(
+        _node(
+            "encoder",
+            input_sources={"prompt": "task.prompt"},
+            output_field="description",
+        ),
+        _node(
+            "decoder",
+            input_sources={"description": "encoder.description"},
+            output_field="code",
+        ),
+        terminal_node_id="decoder",
+    )
+
+
+def failure_state_cases() -> tuple[tuple[str, dict[str, Any], str], ...]:
+    error = NodeError(error_type="test", message="failed")
+    return (
+        (
+            "error-without-error",
+            {"node_id": "n", "status": NodeOutcomeStatus.ERROR},
+            "require error",
+        ),
+        (
+            "error-with-blocked-by",
+            {
+                "node_id": "n",
+                "status": NodeOutcomeStatus.ERROR,
+                "error": error,
+                "blocked_by": ("upstream",),
+            },
+            "cannot include blocked_by",
+        ),
+        (
+            "blocked-without-blocked-by",
+            {"node_id": "n", "status": NodeOutcomeStatus.BLOCKED},
+            "require blocked_by",
+        ),
+        (
+            "blocked-with-error",
+            {
+                "node_id": "n",
+                "status": NodeOutcomeStatus.BLOCKED,
+                "blocked_by": ("upstream",),
+                "error": error,
+            },
+            "cannot include error",
+        ),
     )
