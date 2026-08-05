@@ -225,7 +225,8 @@ def test_invalid_exception_metadata_does_not_escape_execution() -> None:
     class InvalidMetadataError(Exception):
         def __init__(self) -> None:
             super().__init__("callback failed")
-            self.metadata = {"opaque": object()}
+            self.metadata = {"provider": "test", "opaque": object()}
+            self.underlying = ValueError("invalid payload")
 
     graph = _graph(_node("direct"), terminal_node_id="direct")
 
@@ -237,7 +238,10 @@ def test_invalid_exception_metadata_does_not_escape_execution() -> None:
     outcome = result.outcomes["direct"]
     assert result.status is GraphRunStatus.ERROR
     assert outcome.error is not None
-    assert outcome.error.metadata == {}
+    assert outcome.error.metadata == {
+        "provider": "test",
+        "underlying_exception_type": "builtins.ValueError",
+    }
 
 
 def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
