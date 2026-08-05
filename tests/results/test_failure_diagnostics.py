@@ -14,6 +14,7 @@ import pytest
 
 from dr_graph import (
     ClassifiedFailure,
+    GraphRunResult,
     GraphRunStatus,
     NodeConfig,
     NodeError,
@@ -30,6 +31,15 @@ class FullyClassifiedError(Exception):
         self.error_type = "example.Boom"
         self.metadata: Mapping[str, Any] = {"attempt": 1}
         self.underlying: BaseException | None = ValueError("root")
+
+
+def _execute_raising_node(error: BaseException) -> GraphRunResult:
+    graph = _graph(_node("direct"), terminal_node_id="direct")
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        raise error
+
+    return execute_graph(graph=graph, inputs={}, run_node=run_node)
 
 
 def test_fully_conforming_exception_matches_protocol() -> None:
@@ -64,27 +74,44 @@ def test_unclassified_exception_gets_defaults() -> None:
 
 
 @pytest.mark.parametrize(
-    "metadata",
+    ("metadata", "underlying"),
     [
         pytest.param(
             MappingProxyType({"attempt": 1}),
-            id="mapping-proxy",
+            None,
+            id="mapping-proxy-without-underlying",
         ),
-        pytest.param(UserDict({"attempt": 1}), id="user-dict"),
+        pytest.param(
+            MappingProxyType({"attempt": 1}),
+            ValueError("root"),
+            id="mapping-proxy-with-underlying",
+        ),
+        pytest.param(
+            UserDict({"attempt": 1}),
+            None,
+            id="user-dict-without-underlying",
+        ),
+        pytest.param(
+            UserDict({"attempt": 1}),
+            ValueError("root"),
+            id="user-dict-with-underlying",
+        ),
     ],
 )
 def test_node_error_preserves_mapping_metadata(
     metadata: Mapping[str, Any],
+    underlying: BaseException | None,
 ) -> None:
     error = FullyClassifiedError()
     error.metadata = metadata
+    error.underlying = underlying
 
     snapshot = NodeError.from_exception(error)
 
-    assert snapshot.metadata == {
-        "attempt": 1,
-        "underlying_exception_type": "builtins.ValueError",
-    }
+    expected = {"attempt": 1}
+    if underlying is not None:
+        expected["underlying_exception_type"] = "builtins.ValueError"
+    assert snapshot.metadata == expected
     assert dict(metadata) == {"attempt": 1}
 
 
@@ -142,12 +169,7 @@ def test_invalid_exception_metadata_does_not_escape_execution() -> None:
             self.metadata = {"provider": "test", "opaque": object()}
             self.underlying = ValueError("invalid payload")
 
-    graph = _graph(_node("direct"), terminal_node_id="direct")
-
-    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
-        raise InvalidMetadataError
-
-    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
+    result = _execute_raising_node(InvalidMetadataError())
 
     outcome = result.outcomes["direct"]
     assert result.status is GraphRunStatus.ERROR
@@ -166,12 +188,7 @@ def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
             self.failure_class = "permanent"
             self.metadata = {"provider": "test"}
 
-    graph = _graph(_node("direct"), terminal_node_id="direct")
-
-    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
-        raise StepFailure
-
-    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
+    result = _execute_raising_node(StepFailure())
 
     outcome = result.outcomes["direct"]
     assert outcome.error is not None
@@ -182,29 +199,7 @@ def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
     assert result.terminal_error.error == outcome.error
 
 
-def test_node_error_preserves_underlying_exception_type() -> None:
-    graph = _graph(_node("direct"), terminal_node_id="direct")
-    error = PermanentFailureError(
-        "classified failure",
-        underlying=ValueError("bad payload"),
-        metadata={"stage": "parse"},
-    )
-
-    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
-        raise error
-
-    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
-
-    outcome = result.outcomes["direct"]
-    assert outcome.error is not None
-    assert outcome.error.metadata == {
-        "stage": "parse",
-        "underlying_exception_type": "builtins.ValueError",
-    }
-
-
 def test_node_error_preserves_chained_underlying_exception_type() -> None:
-    graph = _graph(_node("direct"), terminal_node_id="direct")
     error = PermanentFailureError(
         "outer",
         underlying=PermanentFailureError(
@@ -214,10 +209,7 @@ def test_node_error_preserves_chained_underlying_exception_type() -> None:
         metadata={"stage": "parse"},
     )
 
-    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
-        raise error
-
-    result = execute_graph(graph=graph, inputs={}, run_node=run_node)
+    result = _execute_raising_node(error)
 
     outcome = result.outcomes["direct"]
     assert outcome.error is not None

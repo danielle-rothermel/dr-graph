@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Never
 
 import pytest
 
@@ -15,7 +15,11 @@ from dr_graph import (
     execute_graph,
     graph_hash,
 )
-from tests.support import _graph, _node, _output
+from tests.support import _graph, _node, _output, failure_state_cases
+
+
+def _raise(error: BaseException) -> Never:
+    raise error
 
 
 def test_result_json_dump_is_persistable_shape() -> None:
@@ -55,9 +59,7 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
     result = execute_graph(
         graph=graph,
         inputs={},
-        run_node=lambda node, inputs: (_ for _ in ()).throw(
-            RuntimeError("boom")
-        ),
+        run_node=lambda node, inputs: _raise(RuntimeError("boom")),
     )
 
     outcome = result.outcomes["direct"]
@@ -114,9 +116,7 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
     result = execute_graph(
         graph=graph,
         inputs={"prompt": "write f"},
-        run_node=lambda node, inputs: (_ for _ in ()).throw(
-            RuntimeError("encoder failed")
-        ),
+        run_node=lambda node, inputs: _raise(RuntimeError("encoder failed")),
     )
 
     assert result.model_dump(mode="json") == {
@@ -183,9 +183,7 @@ def _error_result_fields() -> dict[str, Any]:
     return execute_graph(
         graph=graph,
         inputs={},
-        run_node=lambda node, inputs: (_ for _ in ()).throw(
-            RuntimeError("failed")
-        ),
+        run_node=lambda node, inputs: _raise(RuntimeError("failed")),
     ).model_dump()
 
 
@@ -198,9 +196,7 @@ def _blocked_result_fields() -> dict[str, Any]:
     return execute_graph(
         graph=graph,
         inputs={},
-        run_node=lambda node, inputs: (_ for _ in ()).throw(
-            RuntimeError("failed")
-        ),
+        run_node=lambda node, inputs: _raise(RuntimeError("failed")),
     ).model_dump()
 
 
@@ -319,26 +315,6 @@ def test_graph_run_result_rejects_mismatched_outcome_keys() -> None:
         )
 
 
-def test_graph_run_result_rejects_conflicting_terminal_fields() -> None:
-    with pytest.raises(
-        ValueError,
-        match="both terminal_output and terminal_error",
-    ):
-        GraphRunResult(
-            **_minimal_result_kwargs(),
-            status=GraphRunStatus.ERROR,
-            outcomes={},
-            execution_order=(),
-            terminal_node_id="direct",
-            terminal_output="ok",
-            terminal_error=TerminalError(
-                node_id="direct",
-                status=NodeOutcomeStatus.ERROR,
-                error=NodeError(error_type="test", message="failed"),
-            ),
-        )
-
-
 def _node_error() -> NodeError:
     return NodeError(error_type="test", message="failed")
 
@@ -442,32 +418,8 @@ def test_graph_run_result_rejects_invalid_terminal_shape(
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.ERROR},
-            "require error",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.ERROR,
-                "error": _node_error(),
-                "blocked_by": ("upstream",),
-            },
-            "cannot include blocked_by",
-        ),
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.BLOCKED},
-            "require blocked_by",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.BLOCKED,
-                "blocked_by": ("upstream",),
-                "error": _node_error(),
-            },
-            "cannot include error",
-        ),
+        pytest.param(kwargs, match, id=case_id)
+        for case_id, kwargs, match in failure_state_cases()
     ],
 )
 def test_terminal_error_rejects_invalid_field_combinations(

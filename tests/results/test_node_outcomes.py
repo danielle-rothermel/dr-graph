@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from dr_graph import NodeError, NodeOutcome, NodeOutcomeStatus
-from tests.support import _output
+from tests.support import _output, failure_state_cases
 
 
 def _node_error() -> NodeError:
@@ -38,10 +38,6 @@ def _node_error() -> NodeError:
             "cannot include blocked_by",
         ),
         (
-            {"node_id": "n", "status": NodeOutcomeStatus.ERROR},
-            "require error",
-        ),
-        (
             {
                 "node_id": "n",
                 "status": NodeOutcomeStatus.ERROR,
@@ -53,34 +49,16 @@ def _node_error() -> NodeError:
         (
             {
                 "node_id": "n",
-                "status": NodeOutcomeStatus.ERROR,
-                "error": _node_error(),
-                "blocked_by": ("upstream",),
-            },
-            "cannot include blocked_by",
-        ),
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.BLOCKED},
-            "require blocked_by",
-        ),
-        (
-            {
-                "node_id": "n",
                 "status": NodeOutcomeStatus.BLOCKED,
                 "blocked_by": ("upstream",),
                 "output": _output("ok"),
             },
             "cannot include output",
         ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.BLOCKED,
-                "blocked_by": ("upstream",),
-                "error": _node_error(),
-            },
-            "cannot include error",
-        ),
+        *[
+            pytest.param(kwargs, match, id=case_id)
+            for case_id, kwargs, match in failure_state_cases()
+        ],
     ],
 )
 def test_node_outcome_rejects_invalid_field_combinations(

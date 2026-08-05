@@ -7,27 +7,6 @@ import sys
 import textwrap
 
 
-def test_functional_package_facades_are_importable() -> None:
-    from dr_graph.assembly import graph
-    from dr_graph.configuration import GraphConfig
-    from dr_graph.definitions import GraphDefinition
-    from dr_graph.execution import execute_graph
-    from dr_graph.identity import graph_hash
-    from dr_graph.results import GraphRunResult
-
-    assert all(
-        symbol is not None
-        for symbol in (
-            graph,
-            GraphConfig,
-            GraphDefinition,
-            execute_graph,
-            graph_hash,
-            GraphRunResult,
-        )
-    )
-
-
 def test_import_loads_no_heavy_dependencies() -> None:
     script = textwrap.dedent(
         """

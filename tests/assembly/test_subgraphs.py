@@ -16,30 +16,11 @@ from dr_graph import (
     node,
 )
 from dr_graph.assembly import prefixed_node_id
-
-
-def _encdec_subgraph():
-    return graph(
-        [
-            node(
-                "encoder",
-                node_type="llm_call",
-                input_sources={"prompt": "task.prompt"},
-                output_field="description",
-            ),
-            node(
-                "decoder",
-                node_type="llm_call",
-                input_sources={"description": "encoder.description"},
-                output_field="code",
-            ),
-        ],
-        terminal="decoder",
-    )
+from tests.support import encdec_graph
 
 
 def test_inline_subgraph_prefixes_ids_and_rewires_internal_refs() -> None:
-    nodes = inline_subgraph(_encdec_subgraph(), prefix="inner")
+    nodes = inline_subgraph(encdec_graph(), prefix="inner")
 
     assert [n.node_id for n in nodes] == ["inner:encoder", "inner:decoder"]
     decoder = nodes[1]
@@ -59,7 +40,7 @@ def test_inline_subgraph_rebinds_external_inputs() -> None:
         output_field="idea",
     )
     inner = inline_subgraph(
-        _encdec_subgraph(),
+        encdec_graph(),
         prefix="inner",
         input_sources={"prompt": "seed.idea"},
     )
@@ -87,7 +68,7 @@ def test_inline_subgraph_rebinds_external_inputs() -> None:
 
 
 def test_inline_subgraph_composed_graph_hash_is_flattened_config() -> None:
-    inner = inline_subgraph(_encdec_subgraph(), prefix="inner")
+    inner = inline_subgraph(encdec_graph(), prefix="inner")
     composed = graph(list(inner), terminal="inner:decoder")
     expected = GraphConfig(
         nodes=(
@@ -134,19 +115,41 @@ def test_inline_subgraph_composed_graph_hash_is_flattened_config() -> None:
 def test_inline_subgraph_rejects_unknown_input_source() -> None:
     with pytest.raises(ValueError, match="not external inputs"):
         inline_subgraph(
-            _encdec_subgraph(),
+            encdec_graph(),
             prefix="inner",
             input_sources={"nope": "seed.idea"},
         )
 
 
-def test_inline_subgraph_rejects_bad_prefix_and_separator() -> None:
-    with pytest.raises(ValueError, match="non-empty"):
-        inline_subgraph(_encdec_subgraph(), prefix="")
-    with pytest.raises(ValueError, match=r"cannot contain '\.'"):
-        inline_subgraph(_encdec_subgraph(), prefix="a.b")
-    with pytest.raises(ValueError, match=r"cannot contain '\.'"):
-        inline_subgraph(_encdec_subgraph(), prefix="ok", separator=".")
+@pytest.mark.parametrize(
+    ("prefix", "separator", "error_match"),
+    [
+        pytest.param("", ":", "non-empty", id="empty-prefix"),
+        pytest.param(
+            "a.b",
+            ":",
+            r"cannot contain '\.'",
+            id="dotted-prefix",
+        ),
+        pytest.param(
+            "ok",
+            ".",
+            r"cannot contain '\.'",
+            id="dotted-separator",
+        ),
+    ],
+)
+def test_inline_subgraph_rejects_bad_prefix_and_separator(
+    prefix: str,
+    separator: str,
+    error_match: str,
+) -> None:
+    with pytest.raises(ValueError, match=error_match):
+        inline_subgraph(
+            encdec_graph(),
+            prefix=prefix,
+            separator=separator,
+        )
 
 
 def test_inline_subgraph_preserves_node_types_and_variables() -> None:

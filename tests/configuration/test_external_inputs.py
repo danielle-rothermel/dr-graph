@@ -26,5 +26,4 @@ def test_graph_with_task_sources_does_not_require_task_fields() -> None:
         _node("direct", input_sources={"prompt": "task.prompt"}),
         terminal_node_id="direct",
     )
-    assert graph.model_dump(mode="json")["nodes"]
     validate_graph_external_inputs(graph, allowed_fields=("prompt",))

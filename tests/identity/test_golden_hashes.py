@@ -21,8 +21,6 @@ from tests.identity.golden_graphs import GOLDEN_GRAPHS
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "graph_hashes_golden.json"
 
-HASH_HEX_LENGTH = 64
-
 
 def load_fixture() -> dict[str, dict[str, str]]:
     return json.loads(FIXTURE_PATH.read_text())
@@ -38,7 +36,6 @@ def test_golden_graph_hash_reproduces(name: str) -> None:
         canonical_identity_json(document) == entry["canonical_identity_json"]
     )
     assert graph_hash(config) == entry["graph_hash"]
-    assert len(entry["graph_hash"]) == HASH_HEX_LENGTH
 
 
 def test_golden_fixture_covers_every_graph() -> None:

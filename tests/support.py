@@ -15,8 +15,10 @@ from dr_graph import (
     FieldRole,
     GraphConfig,
     NodeConfig,
+    NodeError,
     NodeFieldSpec,
     NodeInputSourceRef,
+    NodeOutcomeStatus,
     NodeOutput,
 )
 
@@ -80,4 +82,56 @@ def _graph(
     return GraphConfig(
         nodes=nodes,
         terminal_node_id=terminal_node_id,
+    )
+
+
+def encdec_graph() -> GraphConfig:
+    return _graph(
+        _node(
+            "encoder",
+            input_sources={"prompt": "task.prompt"},
+            output_field="description",
+        ),
+        _node(
+            "decoder",
+            input_sources={"description": "encoder.description"},
+            output_field="code",
+        ),
+        terminal_node_id="decoder",
+    )
+
+
+def failure_state_cases() -> tuple[tuple[str, dict[str, Any], str], ...]:
+    error = NodeError(error_type="test", message="failed")
+    return (
+        (
+            "error-without-error",
+            {"node_id": "n", "status": NodeOutcomeStatus.ERROR},
+            "require error",
+        ),
+        (
+            "error-with-blocked-by",
+            {
+                "node_id": "n",
+                "status": NodeOutcomeStatus.ERROR,
+                "error": error,
+                "blocked_by": ("upstream",),
+            },
+            "cannot include blocked_by",
+        ),
+        (
+            "blocked-without-blocked-by",
+            {"node_id": "n", "status": NodeOutcomeStatus.BLOCKED},
+            "require blocked_by",
+        ),
+        (
+            "blocked-with-error",
+            {
+                "node_id": "n",
+                "status": NodeOutcomeStatus.BLOCKED,
+                "blocked_by": ("upstream",),
+                "error": error,
+            },
+            "cannot include error",
+        ),
     )

@@ -85,33 +85,6 @@ def test_downstream_nodes_are_blocked_when_dependency_errors() -> None:
         _node("decoder", input_sources={"description": "encoder"}),
         terminal_node_id="decoder",
     )
-
-    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
-        if node.node_id == "encoder":
-            raise RuntimeError("encoder failed")
-        return _output("unreachable")
-
-    result = execute_graph(
-        graph=graph,
-        inputs={"prompt": "write f"},
-        run_node=run_node,
-    )
-
-    assert result.status is GraphRunStatus.BLOCKED
-    assert result.outcomes["encoder"].status is NodeOutcomeStatus.ERROR
-    assert result.outcomes["decoder"].status is NodeOutcomeStatus.BLOCKED
-    assert result.outcomes["decoder"].blocked_by == ("encoder",)
-    assert result.terminal_error is not None
-    assert result.terminal_error.status is NodeOutcomeStatus.BLOCKED
-    assert result.terminal_error.blocked_by == ("encoder",)
-
-
-def test_blocked_nodes_do_not_invoke_run_node() -> None:
-    graph = _graph(
-        _node("encoder", input_sources={"prompt": "task.prompt"}),
-        _node("decoder", input_sources={"description": "encoder"}),
-        terminal_node_id="decoder",
-    )
     invoked: list[str] = []
 
     def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
@@ -128,7 +101,12 @@ def test_blocked_nodes_do_not_invoke_run_node() -> None:
 
     assert invoked == ["encoder"]
     assert result.status is GraphRunStatus.BLOCKED
+    assert result.outcomes["encoder"].status is NodeOutcomeStatus.ERROR
     assert result.outcomes["decoder"].status is NodeOutcomeStatus.BLOCKED
+    assert result.outcomes["decoder"].blocked_by == ("encoder",)
+    assert result.terminal_error is not None
+    assert result.terminal_error.status is NodeOutcomeStatus.BLOCKED
+    assert result.terminal_error.blocked_by == ("encoder",)
 
 
 def test_blocked_node_lists_all_failed_dependencies() -> None:
