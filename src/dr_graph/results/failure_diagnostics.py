@@ -4,7 +4,10 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+
+from dr_graph.core.json_values import strict_json_object
 
 
 @runtime_checkable
@@ -35,7 +38,12 @@ class NodeError(BaseModel):
     error_type: StrictStr
     message: StrictStr
     failure_class: StrictStr | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Jsonable] = Field(default_factory=dict)
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def validate_metadata(cls, value: Any) -> dict[str, Jsonable]:
+        return strict_json_object(value)
 
     @classmethod
     def from_exception(cls, error: BaseException) -> NodeError:
@@ -86,7 +94,7 @@ def _root_exception(error: BaseException) -> BaseException:
         current = underlying
 
 
-def _exception_metadata(error: BaseException) -> dict[str, Any]:
+def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
     metadata = getattr(error, "metadata", None)
     result = dict(metadata) if isinstance(metadata, Mapping) else {}
     if getattr(error, "underlying", None) is not None:

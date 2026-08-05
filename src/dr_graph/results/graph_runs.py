@@ -3,8 +3,17 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
+from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
+from dr_graph.core.json_values import strict_json_object, strict_json_value
 from dr_graph.results.failure_diagnostics import NodeError  # noqa: TC001
 from dr_graph.results.node_outcomes import NodeOutcome, NodeOutcomeStatus
 
@@ -66,17 +75,27 @@ class GraphRunResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     graph_hash: StrictStr
-    external_inputs: dict[str, Any] = Field(default_factory=dict)
+    external_inputs: dict[str, Jsonable] = Field(default_factory=dict)
     status: GraphRunStatus
     outcomes: dict[str, NodeOutcome]
     execution_order: tuple[StrictStr, ...]
     terminal_node_id: StrictStr
-    terminal_output: Any | None = None
+    terminal_output: Jsonable = None
     terminal_error: TerminalError | None = None
     # Provider Call Attempt records live on the enclosing Rollout Result; the
     # Graph Run Result references them rather than duplicating provider bodies.
     attempt_evidence_refs: tuple[StrictStr, ...] = ()
-    provenance: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, Jsonable] = Field(default_factory=dict)
+
+    @field_validator("external_inputs", "provenance", mode="before")
+    @classmethod
+    def validate_json_objects(cls, value: Any) -> dict[str, Jsonable]:
+        return strict_json_object(value)
+
+    @field_validator("terminal_output", mode="before")
+    @classmethod
+    def validate_terminal_output(cls, value: Any) -> Jsonable:
+        return strict_json_value(value)
 
     @model_validator(mode="after")
     def validate_result(self) -> GraphRunResult:

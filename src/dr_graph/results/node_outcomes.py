@@ -3,8 +3,17 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
+from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
+from dr_graph.core.json_values import strict_json_object
 from dr_graph.results.failure_diagnostics import NodeError
 
 
@@ -24,8 +33,13 @@ class NodeOutcomeStatus(StrEnum):
 class NodeOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    values: dict[str, Any]
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    values: dict[str, Jsonable]
+    metadata: dict[str, Jsonable] = Field(default_factory=dict)
+
+    @field_validator("values", "metadata", mode="before")
+    @classmethod
+    def validate_json_objects(cls, value: Any) -> dict[str, Jsonable]:
+        return strict_json_object(value)
 
 
 class NodeOutcome(BaseModel):
