@@ -1,10 +1,3 @@
-"""Neutral config-assembly helpers.
-
-These cover the common case — node input sources, one declared output field,
-open Variable assignments — without any prompt or provider awareness.
-Domain-aware builders belong app-side.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -26,7 +19,7 @@ def as_node_input_source_ref(
     return NodeInputSourceRef.model_validate(ref)
 
 
-def node(  # noqa: PLR0913 -- the config surface, not incidental knobs
+def node(  # noqa: PLR0913 -- mirrors config fields
     node_id: str,
     *,
     node_type: str,

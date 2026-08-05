@@ -2,19 +2,16 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, model_validator
 
-from dr_graph.core.fields import NodeFieldSpec  # noqa: TC001
-from dr_graph.core.input_sources import NodeInputSourceRef  # noqa: TC001
+from dr_graph.core.fields import (
+    NodeFieldSpec,  # noqa: TC001 -- Pydantic runtime
+)
+from dr_graph.core.input_sources import (  # noqa: TC001 -- Pydantic runtime
+    NodeInputSourceRef,
+)
 from dr_graph.definitions.validation import validate_node_definition
 
 
 class NodeDefinition(BaseModel):
-    """Declares one Node's Definition, DAG wiring, and required Variables.
-
-    ``variable_names`` are the declared Variables a Graph Config must set for
-    this Node; ``input_sources`` fix the DAG shape and input contract;
-    ``fields`` and ``output_field`` declare the input/output contract.
-    """
-
     model_config = ConfigDict(extra="forbid")
 
     node_id: StrictStr

@@ -63,7 +63,7 @@ def execute_graph(
                 node_inputs=node_inputs,
                 run_node=run_node,
             )
-        except Exception as error:  # noqa: BLE001 -- outcomes absorb node failures
+        except Exception as error:  # noqa: BLE001 -- converted to a node outcome
             outcomes[node.node_id] = NodeOutcome.from_error(
                 node_id=node.node_id,
                 error=error,

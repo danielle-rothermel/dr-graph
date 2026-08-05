@@ -35,13 +35,7 @@ def validate_node_fields(
     input_sources: dict[str, NodeInputSourceRef],
     output_field: str,
 ) -> None:
-    """Enforce a Node's field/source contract.
-
-    Shared by ``NodeConfig`` and ``NodeDefinition``: requires at least one
-    field, unique field names, ``output_field`` naming a declared OUTPUT
-    field, and a bidirectional match between declared INPUT fields and
-    ``input_sources`` keys.
-    """
+    """Require unique fields, a declared output, and one source per input."""
     if not fields:
         raise ValueError("node config must declare at least one field")
 
@@ -76,7 +70,6 @@ def missing_output_fields(
     fields: tuple[NodeFieldSpec, ...],
     available_fields: Collection[str],
 ) -> tuple[str, ...]:
-    """Return declared output fields absent from one node output."""
     return tuple(
         sorted(
             field.name

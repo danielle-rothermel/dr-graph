@@ -1,5 +1,3 @@
-"""Versioned Graph Definition artifact: one Definition -> many Configs."""
-
 from __future__ import annotations
 
 import pytest

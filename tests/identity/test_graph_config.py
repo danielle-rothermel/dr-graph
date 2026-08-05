@@ -94,17 +94,13 @@ def test_graph_hash_changes_with_node_declaration_order() -> None:
     ],
 )
 def test_graph_hash_rejects_non_finite_variable(non_finite: float) -> None:
-    # Recursive validation must reject every non-finite Variable value before
-    # canonicalization: model_dump(mode="json") would silently coerce
-    # NaN/Inf to null, colliding distinct configs onto one graph_hash.
+    # Non-finite values must not collapse onto the same graph identity.
     graph = _graph_with_variable(non_finite)
     with pytest.raises(StrictJsonError):
         graph_hash(graph)
 
 
 def test_graph_hash_accepts_list_variable_and_rejects_tuple() -> None:
-    # A list Variable value hashes fine, while the tuple form raises: the two
-    # must never silently collide onto the same graph_hash.
     list_hash = graph_hash(_graph_with_variable([1, 2]))
     assert len(list_hash) == HASH_HEX_LENGTH
     with pytest.raises(StrictJsonError):
@@ -112,8 +108,6 @@ def test_graph_hash_accepts_list_variable_and_rejects_tuple() -> None:
 
 
 def test_finite_variables_still_produce_distinct_hashes() -> None:
-    # Guardrail for the fix: valid finite/None Variable values are NOT rejected
-    # and remain distinguishable (None must not collide with a non-finite one).
     none_hash = graph_hash(_graph_with_variable(None))
     finite_hash = graph_hash(_graph_with_variable(1.5))
 

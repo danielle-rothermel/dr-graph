@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from dr_serialize import Jsonable  # noqa: TC002 -- Pydantic runtime
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -14,7 +14,9 @@ from pydantic import (
 )
 
 from dr_graph.core.json_values import strict_json_object, strict_json_value
-from dr_graph.results.failure_diagnostics import NodeError  # noqa: TC001
+from dr_graph.results.failure_diagnostics import (  # noqa: TC001 -- Pydantic runtime
+    NodeError,
+)
 from dr_graph.results.node_outcomes import NodeOutcome, NodeOutcomeStatus
 
 if TYPE_CHECKING:
@@ -30,6 +32,8 @@ class GraphRunStatus(StrEnum):
 
 
 class TerminalError(BaseModel):
+    """Represents an errored or dependency-blocked terminal node."""
+
     model_config = ConfigDict(extra="forbid")
 
     node_id: StrictStr
@@ -61,15 +65,7 @@ class TerminalError(BaseModel):
 
 
 class GraphRunResult(BaseModel):
-    """Result for one Graph Run.
-
-    Carries Graph Run identity (``graph_hash``), the Graph External Inputs or
-    immutable references that fed the run, the terminal Outcome, per-Node
-    Outcomes and execution order, provenance, and provider-attempt evidence as
-    references only. It references — never duplicates — provider bodies held by
-    the enclosing Rollout Result, holds no Platform Stage state, and has no
-    separate authoritative persistence path.
-    """
+    """Graph-run result with references to caller-owned attempt evidence."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -81,8 +77,6 @@ class GraphRunResult(BaseModel):
     terminal_node_id: StrictStr
     terminal_output: Jsonable = None
     terminal_error: TerminalError | None = None
-    # Provider Call Attempt records live on the enclosing Rollout Result; the
-    # Graph Run Result references them rather than duplicating provider bodies.
     attempt_evidence_refs: tuple[StrictStr, ...] = ()
     provenance: dict[str, Jsonable] = Field(default_factory=dict)
 

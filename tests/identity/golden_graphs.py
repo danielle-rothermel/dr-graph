@@ -1,13 +1,3 @@
-"""Canonical golden Graph Configs for the graph_hash identity gate.
-
-These mirror the original whetstone extraction fixtures, re-expressed under
-the target GraphConfig / Node Input Source / Variable model. They are the
-source of truth for `tests/identity/fixtures/graph_hashes_golden.json`;
-regenerate the fixture with `python -m tests.identity.regen_golden_hashes`
-after an intentional identity change (a coordinated break), never to paper
-over a mismatch.
-"""
-
 from __future__ import annotations
 
 from dr_graph import GraphConfig, graph, node

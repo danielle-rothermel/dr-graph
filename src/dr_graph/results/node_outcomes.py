@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from dr_serialize import Jsonable  # noqa: TC002 -- runtime model hints
+from dr_serialize import Jsonable  # noqa: TC002 -- Pydantic runtime
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -18,12 +18,7 @@ from dr_graph.results.failure_diagnostics import NodeError
 
 
 class NodeOutcomeStatus(StrEnum):
-    """Runner outcome states, not append-only node-attempt row states.
-
-    BLOCKED means the node was not invoked because an upstream dependency did
-    not succeed. Persistence wrappers should not store BLOCKED as a node
-    attempt outcome; it is derivable from the graph and upstream outcomes.
-    """
+    """Graph-run node states, including nodes blocked by dependencies."""
 
     SUCCESS = "success"
     ERROR = "error"

@@ -1,5 +1,3 @@
-"""Completed-nodes resume hook: skip prior work, reuse its outputs."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping

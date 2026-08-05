@@ -1,5 +1,3 @@
-"""Node outcomes, graph run results, and continuation inputs."""
-
 from dr_graph.results.failure_diagnostics import ClassifiedFailure, NodeError
 from dr_graph.results.graph_runs import (
     GraphRunResult,

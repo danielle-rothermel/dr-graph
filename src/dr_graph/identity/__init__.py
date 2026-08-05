@@ -1,5 +1,3 @@
-"""Versioned graph configuration identity."""
-
 from dr_graph.identity.graph_config import (
     GRAPH_CONFIG_IDENTITY_SCHEMA,
     GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION,

@@ -1,5 +1,3 @@
-"""Fixed external-input namespace (task)."""
-
 from __future__ import annotations
 
 import pytest

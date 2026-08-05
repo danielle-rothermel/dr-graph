@@ -27,7 +27,6 @@ def test_inline_subgraph_prefixes_ids_and_rewires_internal_refs() -> None:
     assert decoder.input_sources["description"].ref == (
         "inner:encoder.description"
     )
-    # Unmapped external inputs pass through.
     encoder = nodes[0]
     assert encoder.input_sources["prompt"].ref == "task.prompt"
 

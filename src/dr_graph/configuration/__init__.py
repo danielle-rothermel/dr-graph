@@ -1,5 +1,3 @@
-"""Concrete graph configuration and validation."""
-
 from dr_graph.configuration.external_inputs import (
     validate_graph_external_inputs,
 )

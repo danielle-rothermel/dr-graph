@@ -3,7 +3,7 @@
 [![CI](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/danielle-rothermel/dr-graph/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/dr-graph.svg)](https://pypi.org/project/dr-graph/)
 
-| [Repo Definitions](https://danielle-rothermel.github.io/dr-graph/) | [dr-serialize v0.1.1](https://github.com/danielle-rothermel/dr-serialize) |
+| [Contract reference](https://danielle-rothermel.github.io/dr-graph/) | [dr-serialize](https://github.com/danielle-rothermel/dr-serialize) |
 | --- | --- |
 
 **dr-graph represents hashable computation graphs as data and interprets them
@@ -14,8 +14,7 @@ behavior.
   describe reusable graph topology, node fields, dependencies, and variable
   requirements.
 - **[Configuration](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/configuration)**
-  materializes definitions with concrete variable values and validates the
-  resulting graph.
+  models concrete variable values and validates the resulting graph.
 - **[Identity](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/identity)**
   gives every complete graph configuration a stable, versioned identity.
 - **[Execution](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/execution)**
@@ -29,8 +28,8 @@ behavior.
     creates graphs programmatically, including deterministic namespacing and
     rewiring of subgraphs.
   - **[Core](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/core)**
-    contains shared validation, ordering, naming, and normalization
-    infrastructure.
+    contains shared errors, field and input-source models, topology helpers,
+    and strict-JSON validation.
 
 The following sketches show the public contract shapes. Validation and
 implementation details are omitted.
@@ -178,5 +177,6 @@ class GraphRunResult(BaseModel):
     terminal_node_id: str
     terminal_output: Jsonable
     terminal_error: TerminalError | None
+    attempt_evidence_refs: tuple[str, ...]
     provenance: dict[str, Jsonable]
 ```

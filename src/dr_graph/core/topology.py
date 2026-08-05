@@ -14,7 +14,6 @@ def validate_single_terminal_ids(
     *,
     terminal_node_id: str,
 ) -> None:
-    """Exactly one terminal/sink Node: no other node consumes its output."""
     consumed = {dep for deps in dependencies.values() for dep in deps}
     if terminal_node_id in consumed:
         raise GraphValidationError(

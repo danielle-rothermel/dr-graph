@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 class GraphExecutionError(Exception):
-    """Base exception for pure graph execution errors."""
+    pass
 
 
 class GraphValidationError(GraphExecutionError, ValueError):
@@ -18,4 +18,4 @@ class NodeExecutionError(GraphExecutionError):
 
 
 class CompletedNodeError(GraphExecutionError):
-    """Raised when a supplied completed-node output cannot be used."""
+    pass

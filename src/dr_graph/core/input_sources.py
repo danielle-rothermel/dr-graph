@@ -39,11 +39,10 @@ class NodeInputSourceKind(StrEnum):
 
 
 class NodeInputSourceRef(BaseModel):
-    """One Node Input Source.
+    """Reference to a graph external input or upstream node output.
 
-    Maps one declared Node input to exactly one Graph External Input
-    (``task.<field>``) or one upstream Node Output (``node_id`` or
-    ``node_id.<field>``). Participates in Graph Config identity.
+    Parses from and serializes to ``task.<field>``, ``<node>``, or
+    ``<node>.<field>``.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -118,7 +117,6 @@ def validate_node_output_ref(
     ref: NodeInputSourceRef,
     output_names_by_node: Mapping[str, Collection[str]],
 ) -> None:
-    """Require node-output references to name an available output."""
     if ref.kind is NodeInputSourceKind.GRAPH_EXTERNAL:
         return
     if ref.node_id not in output_names_by_node:

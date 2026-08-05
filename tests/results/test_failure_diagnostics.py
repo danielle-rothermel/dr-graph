@@ -1,5 +1,3 @@
-"""The structural ClassifiedFailure contract."""
-
 from __future__ import annotations
 
 import json
@@ -57,7 +55,6 @@ def test_node_error_reads_protocol_attributes() -> None:
 
 
 def test_partial_conformance_is_tolerated() -> None:
-    # Class-level StrEnum failure_class, no error_type attribute.
     error = NodeError.from_exception(
         PermanentFailureError("bad", metadata={"stage": "parse"})
     )

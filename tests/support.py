@@ -1,11 +1,3 @@
-"""Suite-wide test doubles and graph factories.
-
-`PermanentFailureError` mirrors the shape of an app-side classified
-failure: a class-level `StrEnum` failure class plus instance `underlying`
-and `metadata` attributes, matching the `ClassifiedFailure` protocol the
-runner introspects.
-"""
-
 from __future__ import annotations
 
 from enum import StrEnum

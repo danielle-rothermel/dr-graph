@@ -1,13 +1,3 @@
-"""Byte-identity gate for the Graph Config identity protocol.
-
-Each golden pins the Canonical Identity JSON of the Graph Config Identity
-Document and the full 64-char graph_hash. dr-graph must reproduce both
-byte-for-byte. Never regenerate this fixture to paper over a mismatch — a
-failure here means Graph Config identity changed. Regenerate only on an
-intentional coordinated break with
-`uv run python -m tests.identity.regen_golden_hashes`.
-"""
-
 from __future__ import annotations
 
 import json
@@ -43,8 +33,6 @@ def test_golden_fixture_covers_every_graph() -> None:
 
 
 def test_schema_version_change_changes_graph_hash() -> None:
-    """Golden coverage for schema-version changes: bumping the Identity
-    Document schema_version MUST change the Graph Hash."""
     from dr_serialize import build_identity_document, identity_document_hash
 
     from dr_graph.identity import (

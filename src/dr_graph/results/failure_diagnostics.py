@@ -12,12 +12,11 @@ from dr_graph.core.json_values import strict_json_object, strict_json_value
 
 @runtime_checkable
 class ClassifiedFailure(Protocol):
-    """Structural contract for exceptions carrying failure diagnostics.
+    """Diagnostic attributes recognized by ``NodeError.from_exception``.
 
-    ``NodeError.from_exception`` reads these attributes off any raised
-    exception; partial conformance is tolerated (each attribute is
-    consulted independently, with fallbacks). Canonical failure-class
-    string values live with the raising layer, not here.
+    The extractor consults each attribute independently, so nonconforming
+    exceptions may still provide a subset. Failure-class values are owned by
+    the raising layer.
     """
 
     failure_class: str | None
@@ -27,10 +26,9 @@ class ClassifiedFailure(Protocol):
 
 
 class NodeError(BaseModel):
-    """Lightweight JSON-safe error snapshot for graph run summaries.
+    """JSON-safe graph-run error snapshot.
 
-    Authoritative failure diagnostics belong on node-attempt records at the
-    platform boundary, not in this runner-local shape.
+    Fuller attempt evidence stays caller-owned.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, StrictStr, model_validator
 
-from dr_graph.configuration.nodes import NodeConfig  # noqa: TC001
+from dr_graph.configuration.nodes import (
+    NodeConfig,  # noqa: TC001 -- Pydantic runtime
+)
 from dr_graph.configuration.validation import (
     topological_order,
     validate_graph_config,
@@ -10,10 +12,7 @@ from dr_graph.configuration.validation import (
 
 
 class GraphConfig(BaseModel):
-    """Fully set concrete Graph Config: the sole Rollout Variant config.
-
-    Its exact versioned Identity Document produces ``graph_hash``.
-    """
+    """Static graph whose identity document determines ``graph_hash``."""
 
     model_config = ConfigDict(extra="forbid")
 

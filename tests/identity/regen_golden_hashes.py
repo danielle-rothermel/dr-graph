@@ -1,11 +1,3 @@
-"""Regenerate tests/identity/fixtures/graph_hashes_golden.json.
-
-Run only after an intentional Graph Config identity change (a coordinated
-break) — never to paper over a mismatch. Usage:
-
-    uv run python -m tests.identity.regen_golden_hashes
-"""
-
 from __future__ import annotations
 
 import json
@@ -32,6 +24,10 @@ def build_fixture() -> dict[str, dict[str, str]]:
 
 
 def main() -> None:
+    """Regenerate goldens for an intentional, coordinated identity change.
+
+    Run with ``uv run python -m tests.identity.regen_golden_hashes``.
+    """
     fixture = build_fixture()
     FIXTURE_PATH.write_text(json.dumps(fixture, indent=2) + "\n")
 

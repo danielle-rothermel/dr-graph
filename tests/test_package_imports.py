@@ -1,5 +1,3 @@
-"""Import hygiene for six forbidden application-layer dependencies."""
-
 from __future__ import annotations
 
 import subprocess

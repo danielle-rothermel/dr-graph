@@ -1,12 +1,3 @@
-"""Inline subgraph composition.
-
-v1 represents composition by flattening: `inline_subgraph` returns the
-subgraph's nodes renamed under a prefix, with internal input sources rewired
-and external inputs optionally rebound to parent-side sources. The composed
-graph is an ordinary `GraphConfig`; its `graph_hash` is the hash of the
-flattened config.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -44,12 +35,9 @@ def inline_subgraph(
     input_sources: Mapping[str, str | NodeInputSourceRef] | None = None,
     separator: str = DEFAULT_SUBGRAPH_SEPARATOR,
 ) -> tuple[NodeConfig, ...]:
-    """Return the subgraph's nodes renamed and rewired for a parent graph.
+    """Inline renamed nodes and remap selected external inputs.
 
-    ``input_sources`` maps external input fields of the subgraph to parent-side
-    sources (parent node outputs or parent external inputs). Unmapped external
-    inputs pass through unchanged and must be satisfied by the parent graph's
-    external inputs.
+    Unmapped external inputs remain external inputs of the parent graph.
     """
     if not prefix:
         raise ValueError("prefix must be non-empty")

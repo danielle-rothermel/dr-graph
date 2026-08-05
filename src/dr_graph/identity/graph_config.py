@@ -9,33 +9,17 @@ if TYPE_CHECKING:
 
     from dr_graph.configuration.graphs import GraphConfig
 
-# dr-graph owns this Graph Config identity schema name and version. Bumping
-# the version changes every graph_hash; goldens pin both.
+# Changing either constant changes every graph hash; goldens pin both.
 GRAPH_CONFIG_IDENTITY_SCHEMA = "dr_graph.graph_config"
 GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION = 1
 
 
 def graph_config_identity_payload(graph: GraphConfig) -> dict[str, Any]:
-    """The Graph Config Identity Payload: every static identity-bearing field.
+    """Build the static, identity-bearing Graph Config payload.
 
-    dr-graph deliberately selects exactly the static Graph Config fields —
-    the ordered concrete Node configs (each carrying its node_id, Node
-    Definition reference/``node_type``, declared fields, Node Input Sources,
-    declared output, and static Variable assignments) and the single terminal
-    Node id. No runtime or storage fields are included.
-
-    Dumped in ``mode="python"`` (not ``mode="json"``) so that raw, uncoerced
-    leaf values — including non-finite floats in a Node's ``variables`` —
-    reach dr-serialize's ``validate_strict_json`` and are rejected there,
-    rather than being silently coerced (e.g. ``NaN``/``Inf`` to ``null``)
-    into a colliding identity. ``mode="python"`` emits ``tuple`` for the
-    ``tuple[...]``-typed structural fields, which ``validate_strict_json``
-    rejects as unsupported, so only those known structural tuples — the
-    top-level ``nodes`` and each node's ``fields`` — are converted to lists.
-    Every other value, especially each node's ``variables`` values, is left
-    untouched so unsupported Variable leaves reach the recursive validator and
-    are rejected raw; ``NodeInputSourceRef`` still serializes to its string
-    form.
+    Only known structural tuples are converted to lists. Other leaves remain
+    raw so strict JSON validation rejects unsupported or non-finite variable
+    values instead of coercing them into colliding identities.
     """
     payload = graph.model_dump(mode="python")
     payload["nodes"] = [
@@ -53,9 +37,5 @@ def graph_config_identity_document(graph: GraphConfig) -> IdentityDocument:
 
 
 def graph_hash(graph: GraphConfig) -> str:
-    """Full 64-char lowercase SHA-256 Graph Hash via dr-serialize.
-
-    Computed as the Identity Hash of the Graph Config Identity Document.
-    No truncation and no length parameter; distinct from any Content Hash.
-    """
+    """Return the untruncated SHA-256 hash of the graph identity document."""
     return identity_document_hash(graph_config_identity_document(graph))

@@ -12,14 +12,11 @@ from dr_graph.core.input_sources import (
 
 
 class NodeConfig(BaseModel):
-    """Concrete Node (Config): the umbrella Node lifecycle role.
+    """Static node configuration included in its graph's identity.
 
-    Carries the node's identity (``node_id``), its Node Definition reference
-    (``node_type``, an open string the interpreter never dispatches on),
-    declared fields, one Node Input Source per declared runtime input,
-    declared output field, and its static Variable assignments. Every field
-    participates in ``graph_hash``; there is no separate Node Config hash.
-    Addressed exactly as ``(graph_hash, node_id)``.
+    ``node_type`` is an opaque definition reference; the interpreter does not
+    dispatch on it. Nodes are addressed by ``(graph_hash, node_id)`` rather
+    than an independent identity hash.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -29,7 +26,6 @@ class NodeConfig(BaseModel):
     fields: tuple[NodeFieldSpec, ...] = ()
     input_sources: dict[str, NodeInputSourceRef] = Field(default_factory=dict)
     output_field: StrictStr
-    # Included in graph_hash via GraphConfig identity payload; keep small.
     variables: dict[str, Any] = Field(default_factory=dict)
 
     def input_fields(self) -> tuple[NodeFieldSpec, ...]:

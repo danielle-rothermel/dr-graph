@@ -1,5 +1,3 @@
-"""Hashable computation-graph configs and a pure deterministic interpreter."""
-
 from dr_graph.assembly import (
     as_node_input_source_ref,
     graph,
