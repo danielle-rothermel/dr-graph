@@ -21,7 +21,7 @@ class FullyClassifiedError(Exception):
         super().__init__("boom")
         self.failure_class = "transient"
         self.error_type = "example.Boom"
-        self.metadata: dict[str, Any] = {"attempt": 1}
+        self.metadata: Mapping[str, Any] = {"attempt": 1}
         self.underlying: BaseException | None = ValueError("root")
 
 
@@ -70,7 +70,7 @@ def test_node_error_preserves_mapping_metadata(
     metadata: Mapping[str, Any],
 ) -> None:
     error = FullyClassifiedError()
-    error.metadata = metadata  # type: ignore[assignment]
+    error.metadata = metadata
 
     snapshot = NodeError.from_exception(error)
 

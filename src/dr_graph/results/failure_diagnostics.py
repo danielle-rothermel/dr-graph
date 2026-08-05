@@ -1,12 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
 
 
 @runtime_checkable
@@ -76,16 +74,21 @@ def _exception_type_name(error: BaseException) -> str:
 
 def _root_exception(error: BaseException) -> BaseException:
     current = error
+    visited: set[int] = set()
     while True:
+        visited.add(id(current))
         underlying = getattr(current, "underlying", None)
-        if not isinstance(underlying, BaseException):
+        if (
+            not isinstance(underlying, BaseException)
+            or id(underlying) in visited
+        ):
             return current
         current = underlying
 
 
 def _exception_metadata(error: BaseException) -> dict[str, Any]:
     metadata = getattr(error, "metadata", None)
-    result = dict(metadata) if isinstance(metadata, dict) else {}
+    result = dict(metadata) if isinstance(metadata, Mapping) else {}
     if getattr(error, "underlying", None) is not None:
         result.setdefault(
             "underlying_exception_type",
