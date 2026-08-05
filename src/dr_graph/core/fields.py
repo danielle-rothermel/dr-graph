@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from dr_graph.core.input_sources import NodeInputSourceRef
 
 DEFAULT_FIELD_TYPE = "str"
@@ -68,3 +70,18 @@ def validate_node_fields(
     if missing:
         joined = ", ".join(repr(name) for name in missing)
         raise ValueError(f"input field(s) {joined} have no input source")
+
+
+def missing_output_fields(
+    fields: tuple[NodeFieldSpec, ...],
+    available_fields: Collection[str],
+) -> tuple[str, ...]:
+    """Return declared output fields absent from one node output."""
+    return tuple(
+        sorted(
+            field.name
+            for field in fields
+            if field.role is FieldRole.OUTPUT
+            and field.name not in available_fields
+        )
+    )

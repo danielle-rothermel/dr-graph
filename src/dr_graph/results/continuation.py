@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from dr_graph.core.errors import CompletedNodeError
+from dr_graph.core.fields import missing_output_fields
 from dr_graph.results.node_outcomes import NodeOutput
 
 if TYPE_CHECKING:
@@ -33,11 +34,15 @@ def validated_completed_outputs(
             raise CompletedNodeError(
                 f"completed output for node {node_id!r} is invalid: {error}"
             ) from error
-        output_field = graph.node(node_id).output_field
-        if output_field not in output.values:
+        missing = missing_output_fields(
+            graph.node(node_id).fields,
+            output.values,
+        )
+        if missing:
+            joined = ", ".join(repr(field) for field in missing)
             raise CompletedNodeError(
                 f"completed output for node {node_id!r} missing "
-                f"field {output_field!r}"
+                f"field(s) {joined}"
             )
         outputs[node_id] = output
     completed_ids = outputs.keys()
