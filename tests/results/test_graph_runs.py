@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -162,6 +163,136 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
 
 def _minimal_result_kwargs() -> dict[str, Any]:
     return {"graph_hash": "0" * 64}
+
+
+def _successful_result_fields() -> dict[str, Any]:
+    graph = _graph(
+        _node("source"),
+        _node("terminal", input_sources={"value": "source"}),
+        terminal_node_id="terminal",
+    )
+    return execute_graph(
+        graph=graph,
+        inputs={},
+        run_node=lambda node, inputs: _output(node.node_id),
+    ).model_dump()
+
+
+def _error_result_fields() -> dict[str, Any]:
+    graph = _graph(_node("terminal"), terminal_node_id="terminal")
+    return execute_graph(
+        graph=graph,
+        inputs={},
+        run_node=lambda node, inputs: (_ for _ in ()).throw(
+            RuntimeError("failed")
+        ),
+    ).model_dump()
+
+
+def _blocked_result_fields() -> dict[str, Any]:
+    graph = _graph(
+        _node("source"),
+        _node("terminal", input_sources={"value": "source"}),
+        terminal_node_id="terminal",
+    )
+    return execute_graph(
+        graph=graph,
+        inputs={},
+        run_node=lambda node, inputs: (_ for _ in ()).throw(
+            RuntimeError("failed")
+        ),
+    ).model_dump()
+
+
+def test_graph_run_result_requires_outcomes() -> None:
+    fields = _successful_result_fields()
+    fields["outcomes"] = {}
+    fields["execution_order"] = ()
+
+    with pytest.raises(ValueError, match="at least one outcome"):
+        GraphRunResult(**fields)
+
+
+def test_graph_run_result_requires_terminal_outcome() -> None:
+    fields = _successful_result_fields()
+    fields["outcomes"].pop("terminal")
+    fields["execution_order"] = ("source",)
+
+    with pytest.raises(ValueError, match=r"terminal_node_id.*outcomes"):
+        GraphRunResult(**fields)
+
+
+@pytest.mark.parametrize(
+    "execution_order",
+    [
+        pytest.param(("source",), id="missing-node"),
+        pytest.param(("source", "terminal", "other"), id="extra-node"),
+        pytest.param(("source", "terminal", "terminal"), id="duplicate-node"),
+    ],
+)
+def test_graph_run_result_requires_exact_execution_order(
+    execution_order: tuple[str, ...],
+) -> None:
+    fields = _successful_result_fields()
+    fields["execution_order"] = execution_order
+
+    with pytest.raises(ValueError, match="execution_order"):
+        GraphRunResult(**fields)
+
+
+def test_successful_graph_run_requires_every_outcome_to_succeed() -> None:
+    fields = _successful_result_fields()
+    fields["outcomes"]["source"] = NodeOutcome.from_error(
+        node_id="source",
+        error=RuntimeError("failed"),
+    )
+
+    with pytest.raises(ValueError, match="successful graph runs require"):
+        GraphRunResult(**fields)
+
+
+@pytest.mark.parametrize(
+    ("fields_factory", "terminal_outcome"),
+    [
+        pytest.param(
+            _error_result_fields,
+            NodeOutcome.success(
+                node_id="terminal",
+                output=_output("unexpected"),
+            ),
+            id="error-status-success-outcome",
+        ),
+        pytest.param(
+            _blocked_result_fields,
+            NodeOutcome.from_error(
+                node_id="terminal",
+                error=RuntimeError("failed directly"),
+            ),
+            id="blocked-status-error-outcome",
+        ),
+    ],
+)
+def test_graph_run_status_must_match_terminal_outcome(
+    fields_factory: Callable[[], dict[str, Any]],
+    terminal_outcome: NodeOutcome,
+) -> None:
+    fields = fields_factory()
+    fields["outcomes"]["terminal"] = terminal_outcome
+
+    with pytest.raises(ValueError, match="status must match terminal outcome"):
+        GraphRunResult(**fields)
+
+
+def test_terminal_error_must_match_terminal_outcome() -> None:
+    fields = _error_result_fields()
+    fields["terminal_error"] = TerminalError(
+        node_id="terminal",
+        status=NodeOutcomeStatus.ERROR,
+        error=NodeError(error_type="different", message="different"),
+    )
+
+    with pytest.raises(ValueError, match="must match terminal outcome"):
+        GraphRunResult(**fields)
 
 
 def test_terminal_error_rejects_success_status() -> None:
