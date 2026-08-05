@@ -21,7 +21,7 @@ dependencies = [
     # dr-serialize's canonicalization defines graph_hash; bound to the tested
     # 0.1.x range so an upgrade cannot change identities without a golden
     # review.
-    "dr-serialize>=0.1.0,<0.2.0",
+    "dr-serialize>=0.1.1,<0.2.0",
     "pydantic>=2.13.4",
 ]
 
@@ -46,6 +46,9 @@ only-include = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+dr-serialize = { path = "../dr-serialize", editable = true }
 
 [tool.pyright]
 venvPath = "."
