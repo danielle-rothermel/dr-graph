@@ -98,54 +98,87 @@ class GraphRunResult(BaseModel):
 
     @model_validator(mode="after")
     def validate_result(self) -> GraphRunResult:
-        for key, outcome in self.outcomes.items():
-            if key != outcome.node_id:
-                raise ValueError(
-                    f"outcome key {key!r} does not match "
-                    f"node_id {outcome.node_id!r}"
-                )
+        _validate_terminal_fields(self)
+        _validate_outcome_membership(self)
+        _validate_outcome_coherence(self)
+        return self
 
-        if (
-            self.terminal_output is not None
-            and self.terminal_error is not None
+
+def _validate_terminal_fields(result: GraphRunResult) -> None:
+    if (
+        result.terminal_output is not None
+        and result.terminal_error is not None
+    ):
+        raise ValueError(
+            "graph run result cannot include both "
+            "terminal_output and terminal_error"
+        )
+    if result.status is GraphRunStatus.SUCCESS:
+        if result.terminal_error is not None:
+            raise ValueError(
+                "success graph runs cannot include terminal_error"
+            )
+        return
+    if result.terminal_error is None:
+        raise ValueError(
+            f"{result.status.value} graph runs require terminal_error"
+        )
+    if result.terminal_output is not None:
+        raise ValueError(
+            f"{result.status.value} graph runs cannot include terminal_output"
+        )
+    if result.terminal_error.node_id != result.terminal_node_id:
+        raise ValueError("terminal_error node_id must match terminal_node_id")
+    if result.status is GraphRunStatus.ERROR:
+        if result.terminal_error.status is not NodeOutcomeStatus.ERROR:
+            raise ValueError(
+                "terminal_error status must be error for error graph runs"
+            )
+        return
+    if result.terminal_error.status is not NodeOutcomeStatus.BLOCKED:
+        raise ValueError(
+            "terminal_error status must be blocked for blocked graph runs"
+        )
+
+
+def _validate_outcome_membership(result: GraphRunResult) -> None:
+    if not result.outcomes:
+        raise ValueError("graph run result requires at least one outcome")
+    for key, outcome in result.outcomes.items():
+        if key != outcome.node_id:
+            raise ValueError(
+                f"outcome key {key!r} does not match "
+                f"node_id {outcome.node_id!r}"
+            )
+    if result.terminal_node_id not in result.outcomes:
+        raise ValueError(
+            "terminal_node_id must identify an outcome in outcomes"
+        )
+    if len(result.execution_order) != len(result.outcomes) or set(
+        result.execution_order
+    ) != set(result.outcomes):
+        raise ValueError(
+            "execution_order must contain every outcome node exactly once"
+        )
+
+
+def _validate_outcome_coherence(result: GraphRunResult) -> None:
+    terminal = result.outcomes[result.terminal_node_id]
+    expected_status = _graph_status(terminal=terminal)
+    if result.status is not expected_status:
+        raise ValueError("graph run status must match terminal outcome")
+    if result.status is GraphRunStatus.SUCCESS:
+        if any(
+            outcome.status is not NodeOutcomeStatus.SUCCESS
+            for outcome in result.outcomes.values()
         ):
             raise ValueError(
-                "graph run result cannot include both "
-                "terminal_output and terminal_error"
+                "successful graph runs require every outcome to succeed"
             )
-
-        if self.status is GraphRunStatus.SUCCESS:
-            if self.terminal_error is not None:
-                raise ValueError(
-                    f"{self.status.value} graph runs cannot include "
-                    "terminal_error"
-                )
-            return self
-
-        if self.terminal_error is None:
-            raise ValueError(
-                f"{self.status.value} graph runs require terminal_error"
-            )
-        if self.terminal_output is not None:
-            raise ValueError(
-                f"{self.status.value} graph runs cannot include "
-                "terminal_output"
-            )
-        if self.terminal_error.node_id != self.terminal_node_id:
-            raise ValueError(
-                "terminal_error node_id must match terminal_node_id"
-            )
-        if self.status is GraphRunStatus.ERROR:
-            if self.terminal_error.status is not NodeOutcomeStatus.ERROR:
-                raise ValueError(
-                    "terminal_error status must be error for error graph runs"
-                )
-            return self
-        if self.terminal_error.status is not NodeOutcomeStatus.BLOCKED:
-            raise ValueError(
-                "terminal_error status must be blocked for blocked graph runs"
-            )
-        return self
+        return
+    expected_terminal_error = _terminal_error_from_outcome(terminal)
+    if result.terminal_error != expected_terminal_error:
+        raise ValueError("terminal_error must match terminal outcome")
 
 
 def build_graph_run_result(
@@ -166,12 +199,7 @@ def build_graph_run_result(
                 graph.node(graph.terminal_node_id).output_field
             ]
     else:
-        terminal_error = TerminalError(
-            node_id=terminal.node_id,
-            status=terminal.status,
-            error=terminal.error,
-            blocked_by=terminal.blocked_by,
-        )
+        terminal_error = _terminal_error_from_outcome(terminal)
 
     return GraphRunResult(
         graph_hash=graph_hash_value,
@@ -194,3 +222,12 @@ def _graph_status(
             return GraphRunStatus.BLOCKED
         return GraphRunStatus.ERROR
     return GraphRunStatus.SUCCESS
+
+
+def _terminal_error_from_outcome(terminal: NodeOutcome) -> TerminalError:
+    return TerminalError(
+        node_id=terminal.node_id,
+        status=terminal.status,
+        error=terminal.error,
+        blocked_by=terminal.blocked_by,
+    )
