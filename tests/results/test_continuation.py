@@ -17,7 +17,7 @@ from dr_graph import (
     graph,
     node,
 )
-from tests.core.support import _graph, _node
+from tests.support import _graph, _node
 
 
 def _encdec():

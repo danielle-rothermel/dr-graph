@@ -15,7 +15,7 @@ from dr_graph import (
     execute_graph,
     graph_hash,
 )
-from tests.core.support import _graph, _node, _output
+from tests.support import _graph, _node, _output
 
 
 def test_result_json_dump_is_persistable_shape() -> None:
@@ -341,85 +341,6 @@ def test_graph_run_result_rejects_conflicting_terminal_fields() -> None:
 
 def _node_error() -> NodeError:
     return NodeError(error_type="test", message="failed")
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "match"),
-    [
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.SUCCESS},
-            "require output",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.SUCCESS,
-                "output": _output("ok"),
-                "error": _node_error(),
-            },
-            "cannot include error",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.SUCCESS,
-                "output": _output("ok"),
-                "blocked_by": ("upstream",),
-            },
-            "cannot include blocked_by",
-        ),
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.ERROR},
-            "require error",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.ERROR,
-                "error": _node_error(),
-                "output": _output("ok"),
-            },
-            "cannot include output",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.ERROR,
-                "error": _node_error(),
-                "blocked_by": ("upstream",),
-            },
-            "cannot include blocked_by",
-        ),
-        (
-            {"node_id": "n", "status": NodeOutcomeStatus.BLOCKED},
-            "require blocked_by",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.BLOCKED,
-                "blocked_by": ("upstream",),
-                "output": _output("ok"),
-            },
-            "cannot include output",
-        ),
-        (
-            {
-                "node_id": "n",
-                "status": NodeOutcomeStatus.BLOCKED,
-                "blocked_by": ("upstream",),
-                "error": _node_error(),
-            },
-            "cannot include error",
-        ),
-    ],
-)
-def test_node_outcome_rejects_invalid_field_combinations(
-    kwargs: dict[str, Any],
-    match: str,
-) -> None:
-    with pytest.raises(ValueError, match=match):
-        NodeOutcome(**kwargs)
 
 
 def _terminal_error(

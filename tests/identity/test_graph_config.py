@@ -17,7 +17,7 @@ from dr_graph.identity import (
     GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION,
     graph_config_identity_document,
 )
-from tests.core.support import _graph, _node
+from tests.support import _graph, _node
 
 HASH_HEX_LENGTH = 64
 

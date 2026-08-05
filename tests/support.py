@@ -1,4 +1,4 @@
-"""Shared test doubles.
+"""Suite-wide test doubles and graph factories.
 
 `PermanentFailureError` mirrors the shape of an app-side classified
 failure: a class-level `StrEnum` failure class plus instance `underlying`
