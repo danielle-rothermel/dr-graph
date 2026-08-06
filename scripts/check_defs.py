@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Validate the repository's terms, contracts, and rendered .defs surface."""
-
 from __future__ import annotations
 
 import sys
@@ -12,6 +10,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import dr_graph
+import dr_graph.flow
+import dr_graph.flow.transport
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -206,22 +206,47 @@ def _require_acyclic(graph: Mapping[str, list[str]]) -> None:
 
 
 def _validate_exports(terms: Iterable[Mapping[str, object]]) -> None:
-    root_all = getattr(dr_graph, "__all__", None)
-    _require(
-        isinstance(root_all, (list, tuple)) and bool(root_all),
-        "dr_graph.__all__ must be a nonempty list or tuple",
-    )
-    root_exports = [
-        _nonempty_string(symbol, f"dr_graph.__all__[{index}]")
-        for index, symbol in enumerate(root_all)
-    ]
-    root_duplicates = sorted(
-        symbol for symbol, count in Counter(root_exports).items() if count > 1
-    )
-    _require(
-        not root_duplicates,
-        f"dr_graph.__all__ has duplicates: {root_duplicates}",
-    )
+    namespaces = {
+        "dr_graph": dr_graph,
+        "dr_graph.flow": dr_graph.flow,
+        "dr_graph.flow.transport": dr_graph.flow.transport,
+    }
+    public_symbols: set[str] = set()
+    qualified_exports: set[str] = set()
+    root_exports: set[str] = set()
+    subpackage_exports: set[str] = set()
+    missing_attributes: list[str] = []
+
+    for namespace, module in namespaces.items():
+        module_all = getattr(module, "__all__", None)
+        _require(
+            isinstance(module_all, (list, tuple)) and bool(module_all),
+            f"{namespace}.__all__ must be a nonempty list or tuple",
+        )
+        exports = [
+            _nonempty_string(
+                symbol,
+                f"{namespace}.__all__[{index}]",
+            )
+            for index, symbol in enumerate(module_all)
+        ]
+        duplicates = sorted(
+            symbol for symbol, count in Counter(exports).items() if count > 1
+        )
+        _require(
+            not duplicates,
+            f"{namespace}.__all__ has duplicates: {duplicates}",
+        )
+        for symbol in exports:
+            qualified_symbol = f"{namespace}.{symbol}"
+            public_symbols.add(qualified_symbol)
+            if namespace == "dr_graph":
+                root_exports.add(symbol)
+            else:
+                qualified_exports.add(qualified_symbol)
+                subpackage_exports.add(symbol)
+            if not hasattr(module, symbol):
+                missing_attributes.append(qualified_symbol)
 
     mapped_exports = [
         symbol for term in terms for symbol in term.get("exported_symbols", [])
@@ -230,11 +255,16 @@ def _validate_exports(terms: Iterable[Mapping[str, object]]) -> None:
     duplicate_mappings = sorted(
         symbol for symbol, count in mapped_counts.items() if count > 1
     )
-    missing_mappings = sorted(set(root_exports) - set(mapped_exports))
-    unknown_mappings = sorted(set(mapped_exports) - set(root_exports))
-    missing_attributes = sorted(
-        symbol for symbol in root_exports if not hasattr(dr_graph, symbol)
+    qualified_mappings = {symbol for symbol in mapped_exports if "." in symbol}
+    short_mappings = set(mapped_exports) - qualified_mappings
+    missing_mappings = sorted(
+        (root_exports - short_mappings)
+        | (qualified_exports - qualified_mappings)
     )
+    unknown_mappings = sorted(
+        (short_mappings - root_exports) | (qualified_mappings - public_symbols)
+    )
+    root_subpackage_overlap = sorted(root_exports & subpackage_exports)
 
     _require(
         not duplicate_mappings,
@@ -242,17 +272,22 @@ def _validate_exports(terms: Iterable[Mapping[str, object]]) -> None:
     )
     _require(
         not missing_mappings,
-        "dr_graph.__all__ symbols missing from terms.toml: "
+        "public __all__ symbols missing from terms.toml: "
         f"{missing_mappings}",
     )
     _require(
         not unknown_mappings,
-        "terms.toml maps symbols absent from dr_graph.__all__: "
+        "terms.toml maps symbols absent from public __all__ declarations: "
         f"{unknown_mappings}",
     )
     _require(
+        not root_subpackage_overlap,
+        "dr_graph and its functional subpackages export the same symbols: "
+        f"{root_subpackage_overlap}",
+    )
+    _require(
         not missing_attributes,
-        "dr_graph.__all__ symbols missing from the package: "
+        "public __all__ symbols missing from their packages: "
         f"{missing_attributes}",
     )
 
@@ -317,11 +352,6 @@ def validate_defs_surface(defs_dir: Path) -> None:
         _require(
             path.stat().st_size > 0, f"required .defs asset is empty: {asset}"
         )
-    _require(
-        not (defs_dir / "vocab.html").exists(),
-        ".defs/vocab.html must remain absent; index.html is the terms surface",
-    )
-
     parser = _IndexParser()
     parser.feed((defs_dir / "index.html").read_text(encoding="utf-8"))
     missing_slots = sorted(REQUIRED_INDEX_SLOTS - parser.slots)

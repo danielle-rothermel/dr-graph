@@ -6,9 +6,9 @@
 | [Terms and contracts](https://danielle-rothermel.github.io/dr-graph/) | [Terms TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/terms.toml) | [Contracts TOML](https://github.com/danielle-rothermel/dr-graph/blob/main/.defs/contracts.toml) | [dr-serialize](https://github.com/danielle-rothermel/dr-serialize) |
 | --- | --- | --- | --- |
 
-**dr-graph represents hashable computation graphs as data and interprets them
-deterministically.** Graph structure is separate from caller-supplied node
-behavior.
+**dr-graph represents hashable computation graphs as data, interprets them
+deterministically, and provides exact flow optimization primitives.** Graph
+structure is separate from caller-supplied node behavior and optimization.
 
 - **[Definitions](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/definitions)**
   describe reusable graph topology, node fields, dependencies, and variable
@@ -23,6 +23,9 @@ behavior.
 - **[Results](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/results)**
   models per-node and graph-level outcomes, including reuse of completed node
   outputs when continuing execution.
+- **[Flow optimization](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/flow)**
+  solves exact min-cost flow and balanced separable convex transportation
+  problems independently of computation-graph execution.
 - **Infra**
   - **[Assembly](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/assembly)**
     creates graphs programmatically, including deterministic namespacing and
@@ -179,4 +182,66 @@ class GraphRunResult(BaseModel):
     terminal_error: TerminalError | None
     attempt_evidence_refs: tuple[str, ...]
     provenance: dict[str, Jsonable]
+```
+
+## Flow optimization
+
+Flow optimization is independent of graph configuration and interpretation.
+The base package models declared network order and returns exact arc flows in
+that order.
+
+```python
+class FlowArc:
+    arc_id: ArcId
+    source: NodeId
+    target: NodeId
+    capacity: int
+    unit_cost: int
+
+
+class FlowProblem:
+    nodes: tuple[NodeId, ...]
+    arcs: tuple[FlowArc, ...]
+    source: NodeId
+    sink: NodeId
+    required_flow: int
+
+
+class FlowResult:
+    sent_flow: int
+    total_cost: int
+    arc_flows: tuple[ArcFlow, ...]
+```
+
+```python
+def solve_min_cost_flow(problem: FlowProblem) -> FlowResult: ...
+```
+
+The nested transportation package models each available route by its ordered
+marginal costs; every entry supplies one unit of capacity. Its result preserves
+source and destination index order as an allocation matrix.
+
+```python
+class TransportCell:
+    source_index: int
+    destination_index: int
+    marginal_costs: tuple[int, ...]
+
+
+class TransportProblem:
+    supplies: tuple[int, ...]
+    demands: tuple[int, ...]
+    cells: tuple[TransportCell, ...]
+
+
+class TransportSolution:
+    allocations: tuple[tuple[int, ...], ...]
+    total_flow: int
+    total_cost: int
+```
+
+```python
+def solve_separable_transport(
+    problem: TransportProblem,
+) -> TransportSolution: ...
 ```

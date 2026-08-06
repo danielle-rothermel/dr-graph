@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-08-06
+
+### Added
+
+- `dr_graph.flow` provides exact deterministic single-source, single-sink min-cost flow over nonnegative integer capacities and costs.
+- `dr_graph.flow.transport` provides exact separable convex transportation from nonnegative, nondecreasing integer marginal costs.
+
+### Notes
+
+- The top-level `dr_graph` computation API remains separate from the flow optimization namespace.
+- The README and authoritative terms and contracts describe both optimization namespaces and their stable public shapes.
+- Tag-triggered releases verify that the release commit belongs to `main` before publishing.
+
 ## [0.1.1] - 2026-08-05
 
 ### Changed
