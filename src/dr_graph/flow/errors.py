@@ -13,5 +13,9 @@ class InfeasibleFlowError(FlowError):
     """Raised when the network cannot carry the exact required flow."""
 
 
+class InfeasibleTransportError(FlowError):
+    """Raised when a valid transport problem cannot satisfy all demand."""
+
+
 class FlowPostconditionError(FlowError):
     """Raised when a solver result violates the flow contract."""
