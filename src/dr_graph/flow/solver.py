@@ -112,9 +112,7 @@ def _build_residual_network(
     problem: FlowProblem,
     node_indexes: dict[NodeId, int],
 ) -> list[list[_ResidualArc]]:
-    residual: list[list[_ResidualArc]] = [
-        [] for _node in problem.nodes
-    ]
+    residual: list[list[_ResidualArc]] = [[] for _node in problem.nodes]
     for arc_index, arc in enumerate(problem.arcs):
         source_index = node_indexes[arc.source]
         target_index = node_indexes[arc.target]

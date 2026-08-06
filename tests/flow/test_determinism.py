@@ -76,8 +76,9 @@ def test_equal_parallel_arcs_use_arc_declaration_order() -> None:
     )
 
 
-def test_multiple_global_optima_return_same_declared_choice_repeatedly(
-) -> None:
+def test_multiple_global_optima_return_same_declared_choice_repeatedly() -> (
+    None
+):
     problem = FlowProblem(
         nodes=(NodeId("s"), NodeId("left"), NodeId("right"), NodeId("t")),
         arcs=(

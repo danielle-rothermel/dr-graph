@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="doc.css">
+<title>dr-graph · The top-level computation API contract</title>
+<style>
+  /* Page-local tokens. Purple (--anchor) = main-point accents (.key/.must);
+     blue (--accent) = term links (.term-ref), matching doc.css link hue. */
+  .term-name { font-weight: 600; }
+  dfn.term-name { font-style: normal; }
+  .must { color: var(--anchor); font-weight: 600; }
+  .term-ref { color: var(--accent); text-decoration: underline; text-decoration-style: dashed; text-underline-offset: 2px; }
+  td ul { margin: 0; padding-left: 18px; }
+  td li { margin-bottom: 4px; }
+  td li:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main class="wide">
+
+<h1>The top-level dr-graph computation API contract</h1>
+<p class="dek">A reference for the terms and guarantees that bind the top-level <code>dr_graph</code> API.</p>
+<div class="byline">dr-graph · 2026-07-24</div>
+
+<p>This is the vocabulary of the top-level computation-graph contract dr-graph implements: the <span class="key">terms</span> for graph shape, config identity, and deterministic interpretation, the <span class="key">guarantees</span> that bind this API, what is in and out of <span class="key">scope</span>, and the <span class="key">mapping</span> from each term to the names actually exported by <a href="https://github.com/danielle-rothermel/dr-graph/blob/main/src/dr_graph/__init__.py"><code>dr_graph</code></a>. This repo provides hashable graph configs and a pure interpreter; it is not a workflow engine, and durability, scheduling, and domain semantics belong to the caller. The separate public <code>dr_graph.flow</code> namespace is outside this computation contract.</p>
+
+<div class="section-head" id="terms"><h2>Terms</h2></div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td><dfn class="term-name" id="term-node-primitive">Node</dfn></td><td>An executable component of a graph with declared input fields and output fields, connected to other nodes so that outputs route to inputs. The umbrella structural component; graph configs and node configs specialize it.</td></tr>
+    <tr><td><dfn class="term-name" id="term-dag">Directed Acyclic Graph (DAG)</dfn></td><td>A set of <a class="term-ref" href="#term-node-primitive">nodes</a> connected by directed edges with no cycle, so that following edges never returns to a starting node.</td></tr>
+    <tr><td><dfn class="term-name" id="term-topological-order">Topological Order</dfn></td><td>A linear ordering of a <a class="term-ref" href="#term-dag">DAG's</a> nodes in which every node appears after all the nodes it depends on. Ties are broken by node id, so the order is deterministic.</td></tr>
+    <tr><td><dfn class="term-name" id="term-sink-node">Sink Node</dfn></td><td>A node whose output no other node consumes. A graph in this repo has exactly one, which fills the graph's terminal-node role.</td></tr>
+    <tr><td><dfn class="term-name" id="term-payload">Payload</dfn></td><td>The inner data a document carries, distinct from the schema name and version that wrap it.</td></tr>
+    <tr><td><dfn class="term-name" id="term-schema">Schema and Schema Version</dfn></td><td>A name identifying the shape of a document and an integer marking a specific revision of that shape. Changing the version changes every hash computed from documents of that schema.</td></tr>
+    <tr><td><dfn class="term-name" id="term-finite-json">Finite JSON</dfn></td><td>A JSON value composed only of null, booleans, strings, finite numbers, lists, and string-keyed objects, recursively — with no <code>NaN</code>, no infinities, and no other runtime type. This repo validates it and rejects everything else.</td></tr>
+    <tr><td><dfn class="term-name" id="term-canonical-json">Canonical JSON</dfn></td><td>The single deterministic UTF-8 JSON rendering of a JSON-safe value — compact, sorted keys. The same value always produces the same bytes.</td></tr>
+    <tr><td><dfn class="term-name" id="term-validation">Validation</dfn></td><td>The check that a value conforms to its declared shape and rules, accepting it unchanged or raising a typed error. Constructing a config or document validates it.</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-runner">Node Runner Callback</dfn></td><td>A caller-supplied function that the interpreter invokes once per node to produce that node's output. It holds all domain behavior; the interpreter never inspects what it does.</td></tr>
+    <tr><td><dfn class="term-name" id="term-hash">Hash</dfn></td><td>A deterministic fixed-length value computed by a declared algorithm over exact declared input bytes; its specific role and semantics come from the qualified term. This repo computes the <a class="term-ref" href="#term-graph-hash">graph hash</a> specialization.</td></tr>
+    <tr><td><dfn class="term-name" id="term-variable">Variable</dfn></td><td>A named slot on a <a class="term-ref" href="#term-node-primitive">node</a> whose allowed values and identity effect a <a class="term-ref" href="#term-graph-definition">graph definition</a> declares, set to a concrete value when a <a class="term-ref" href="#term-graph-config">graph config</a> is materialized.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph">Graph</dfn></td><td>A <a class="term-ref" href="#term-dag">directed acyclic composition</a> of <a class="term-ref" href="#term-node-primitive">nodes</a> whose connections route outputs to inputs. The umbrella structural concept that graph definitions and graph configs specialize.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-definition">Graph Definition</dfn></td><td>A versioned, variable-bearing <a class="term-ref" href="#term-graph">graph</a> shape. It declares <a class="term-ref" href="#term-node-definition">node definitions</a>, <a class="term-ref" href="#term-variable">variables</a>, structure, input and output contracts, and exactly one <a class="term-ref" href="#term-terminal-node">terminal node</a>, and materializes one or more <a class="term-ref" href="#term-graph-config">graph configs</a>. The definition carries its own integer <code>schema_version</code> for the definition artifact's shape, independent of <code>GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION</code>, and it never enters the <a class="term-ref" href="#term-graph-hash">graph hash</a> (a materialized <a class="term-ref" href="#term-graph-config">graph config</a> holds only its nodes and terminal node id).</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-definition">Node Definition</dfn></td><td>The declaration of one node within a <a class="term-ref" href="#term-graph-definition">graph definition</a>: its node id, its node type reference, declared input and output fields, its <a class="term-ref" href="#term-node-input-source">node input sources</a> fixing the <a class="term-ref" href="#term-dag">DAG</a> shape, and the names of the <a class="term-ref" href="#term-variable">variables</a> a <a class="term-ref" href="#term-graph-config">graph config</a> must set for it.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-config">Graph Config</dfn></td><td>A concrete, fully set and validated config materialized from exactly one <a class="term-ref" href="#term-graph-definition">graph definition</a>. Its nodes carry their node type reference, every static <a class="term-ref" href="#term-variable">variable</a> assignment that determines identity, <a class="term-ref" href="#term-node-input-source">node input sources</a>, and its declared output field. It has exactly one <a class="term-ref" href="#term-terminal-node">terminal node</a> and is the sole config identifying one <a class="term-ref" href="#term-rollout-variant">rollout variant</a>. Its exact versioned <a class="term-ref" href="#term-identity-document">identity document</a> produces the <a class="term-ref" href="#term-graph-hash">graph hash</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-materialization">Materialization</dfn></td><td>One fully-set <a class="term-ref" href="#term-graph-config">graph config</a> produced from a <a class="term-ref" href="#term-graph-definition">graph definition</a>, with a concrete value bound to every declared <a class="term-ref" href="#term-variable">variable</a> on every node.</td></tr>
+    <tr><td><dfn class="term-name" id="term-identity-payload">Identity Payload</dfn></td><td>Validated <a class="term-ref" href="#term-finite-json">finite-JSON</a> data deliberately selected by this repo to hold every field that determines a <a class="term-ref" href="#term-graph-config">graph config's</a> identity and no incidental runtime or storage field.</td></tr>
+    <tr><td><dfn class="term-name" id="term-identity-document">Identity Document</dfn></td><td>A complete document that carries its own schema name and version, with exactly the shape <code>{schema, schema_version, payload}</code>. This repo selects the <a class="term-ref" href="#term-identity-payload">identity payload</a> fields inside it and validates the <a class="term-ref" href="#term-finite-json">finite JSON</a> and the exact document shape.</td></tr>
+    <tr><td><dfn class="term-name" id="term-canonical-identity-json">Canonical Identity JSON</dfn></td><td>The <a class="term-ref" href="#term-canonical-json">canonical JSON</a> this repo renders from a validated <a class="term-ref" href="#term-identity-document">identity document</a>, without lossy normalization.</td></tr>
+    <tr><td><dfn class="term-name" id="term-identity-hash">Identity Hash</dfn></td><td>The <a class="term-ref" href="#term-hash">hash</a> specialization for identity: the full 64-character lowercase SHA-256 value of the <a class="term-ref" href="#term-canonical-identity-json">canonical identity JSON</a> of an <a class="term-ref" href="#term-identity-document">identity document</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-content-hash">Content Hash</dfn></td><td>The <a class="term-ref" href="#term-hash">hash</a> specialization for content addressing: the full 64-character lowercase SHA-256 value of a complete persisted object or record. Distinct from an <a class="term-ref" href="#term-identity-hash">identity hash</a>, which comes from <a class="term-ref" href="#term-canonical-identity-json">canonical identity JSON</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-config">Node (Config)</dfn></td><td>A concrete validated config materialized from exactly one <a class="term-ref" href="#term-node-definition">node definition</a> in the umbrella <a class="term-ref" href="#term-node-primitive">node</a> structure: an executable graph component whose node id is unique within its <a class="term-ref" href="#term-graph-config">graph config</a>, carrying a node type reference, its set <a class="term-ref" href="#term-variable">variable</a> assignments, one <a class="term-ref" href="#term-node-input-source">node input source</a> per declared runtime input, and its declared output field. Its fields participate in the <a class="term-ref" href="#term-graph-hash">graph hash</a>; there is no separate node config hash, and it is addressed exactly as <code>(graph_hash, node_id)</code>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-input-source">Node Input Source</dfn></td><td>Runtime wiring that maps one declared node input to exactly one <a class="term-ref" href="#term-graph-external-input">graph external input</a> (<code>task.&lt;field&gt;</code>) or one upstream <a class="term-ref" href="#term-node-output">node output</a>. It is part of <a class="term-ref" href="#term-graph-config">graph config</a> identity. Static config references are <a class="term-ref" href="#term-variable">variable</a> assignments, not node input sources.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-external-input">Graph External Input</dfn></td><td>A runtime graph input supplied through the <code>task.&lt;field&gt;</code> namespace, whether or not the value comes from a caller-specific task identity.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-hash">Graph Hash</dfn></td><td>The <a class="term-ref" href="#term-hash">hash</a> specialization for <a class="term-ref" href="#term-graph-config">graph config</a> identity: the full 64-character lowercase SHA-256 <a class="term-ref" href="#term-identity-hash">identity hash</a> of a graph config, identifying the exact static executable <a class="term-ref" href="#term-rollout-variant">rollout variant</a>. It is derived from the graph config identity document and remains distinct from a <a class="term-ref" href="#term-content-hash">content hash</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-run">Graph Run</dfn></td><td>The deterministic <a class="term-ref" href="#term-topological-order">topological</a> interpretation of one <a class="term-ref" href="#term-graph-config">graph config</a> with <a class="term-ref" href="#term-graph-external-input">graph external inputs</a>, optional <a class="term-ref" href="#term-completed-node-output">completed node outputs</a>, and a validated <a class="term-ref" href="#term-node-runner">node runner callback</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-output">Node Output</dfn></td><td>A validated JSON-safe output object holding the values a successful node invocation produces. It does not itself enforce that its fields match the node's declared output fields.</td></tr>
+    <tr><td><dfn class="term-name" id="term-completed-node-output">Completed Node Output</dfn></td><td>A caller-supplied prior <a class="term-ref" href="#term-node-output">node output</a> for one node of a <a class="term-ref" href="#term-graph-run">graph run</a>, keyed by node id. The interpreter validates it against the <a class="term-ref" href="#term-graph-config">graph config</a> — the id must name a node, the value must be a valid <a class="term-ref" href="#term-node-output">node output</a>, and it must carry the node's declared output field — then records it as that node's successful <a class="term-ref" href="#term-node-outcome">node outcome</a> without invoking the <a class="term-ref" href="#term-node-runner">node runner callback</a>. Choosing and persisting completed outputs belongs to the caller; it affects only the run, never the <a class="term-ref" href="#term-graph-hash">graph hash</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-outcome">Outcome</dfn></td><td>The typed terminal value or state of one logical operation. Success carries its output; typed non-success carries causal-failure or dependency-block evidence. It holds neither attempt history nor provenance and is not itself a <a class="term-ref" href="#term-graph-run-result">result</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-node-outcome">Node Outcome</dfn></td><td>The node role of <a class="term-ref" href="#term-outcome">outcome</a>: one node's successful, failed, or dependency-blocked terminal state, with the corresponding <a class="term-ref" href="#term-node-output">output</a> or causal evidence.</td></tr>
+    <tr><td><dfn class="term-name" id="term-terminal-node">Terminal Node</dfn></td><td>The structural role of the <a class="term-ref" href="#term-graph">graph's</a> unique <a class="term-ref" href="#term-sink-node">sink node</a>, not a node type. On success it produces an ordinary <a class="term-ref" href="#term-node-output">node output</a> that becomes the <a class="term-ref" href="#term-graph-output">graph output</a> unchanged.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-output">Graph Output</dfn></td><td>The output of a successful <a class="term-ref" href="#term-graph-run">graph run</a>: the <a class="term-ref" href="#term-terminal-node">terminal node's</a> ordinary <a class="term-ref" href="#term-node-output">node output</a>, unchanged and under the same declared output contract. It has no terminal-only shape or reference.</td></tr>
+    <tr><td><dfn class="term-name" id="term-graph-run-result">Graph Run Result</dfn></td><td>The result for one <a class="term-ref" href="#term-graph-run">graph run</a>. It carries graph run identity (the <a class="term-ref" href="#term-graph-hash">graph hash</a>), the <a class="term-ref" href="#term-graph-external-input">graph external inputs</a> or immutable references that fed the run, the terminal <a class="term-ref" href="#term-outcome">outcome</a>, per-node <a class="term-ref" href="#term-node-outcome">outcomes</a> and execution order, provenance, and per-attempt failure evidence as references only. It references rather than duplicates the referenced payloads held by an enclosing result, holds no external stage state, and has no separate authoritative persistence path.</td></tr>
+    <tr><td><dfn class="term-name" id="term-provenance">Provenance</dfn></td><td>Free-form, non-identity metadata describing how a <a class="term-ref" href="#term-graph-run">graph run</a> was produced, carried on the <a class="term-ref" href="#term-graph-run-result">graph run result</a> and excluded from every <a class="term-ref" href="#term-identity-payload">identity payload</a> and from <a class="term-ref" href="#term-outcome">outcomes</a>.</td></tr>
+    <tr><td><dfn class="term-name" id="term-rollout-variant">Rollout Variant</dfn></td><td>The role of exactly one concrete <a class="term-ref" href="#term-graph-config">graph config</a> as the static, complete, output-affecting graph and configuration being compared or measured. Its sole identity is that graph config's <a class="term-ref" href="#term-graph-hash">graph hash</a>, excluding runtime inputs and node outputs. The README's motivating "treatment" and "genome" language maps to this term.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="section-head" id="guarantees"><h2>Guarantees</h2></div>
+
+<div class="callout">
+  <strong>The Graph Hash Is the Whole Config, and Only the Config.</strong> The <a class="term-ref" href="#term-graph-hash">graph hash</a> is the full 64-character <a class="term-ref" href="#term-identity-hash">identity hash</a> of a <a class="term-ref" href="#term-graph-config">graph config's</a> versioned <a class="term-ref" href="#term-identity-document">identity document</a>: it covers every static field that determines identity, including open <a class="term-ref" href="#term-variable">variable</a> assignments, and nothing runtime — no <a class="term-ref" href="#term-graph-external-input">external inputs</a> and no <a class="term-ref" href="#term-node-output">node outputs</a>.
+</div>
+<ul>
+  <li><span class="must">Computes the full</span> <a class="term-ref" href="#term-graph-hash">graph hash</a> through its own identity path — a lowercase <span class="key">64-character SHA-256</span> value, with <span class="key">no truncation and no length parameter</span>.</li>
+  <li><span class="must">Selects</span> the <a class="term-ref" href="#term-identity-payload">identity payload</a> as exactly the ordered node configs and the single <a class="term-ref" href="#term-terminal-node">terminal node</a> id, and <span class="key">excludes every runtime and storage field</span>.</li>
+  <li><span class="must">Owns</span> the graph config identity <a class="term-ref" href="#term-schema">schema name and version</a> (<code>dr_graph.graph_config</code>, version 1); bumping the version changes every <a class="term-ref" href="#term-graph-hash">graph hash</a>.</li>
+  <li><span class="must">Rejects</span> non-<a class="term-ref" href="#term-finite-json">finite-JSON</a> <a class="term-ref" href="#term-variable">variable</a> values rather than coercing them, so <code>NaN</code> or an infinity can never collapse into a colliding identity.</li>
+  <li><span class="must">Validates</span> that a <a class="term-ref" href="#term-graph-config">graph config</a> is a <a class="term-ref" href="#term-dag">DAG</a> with unique node ids, legal <a class="term-ref" href="#term-node-input-source">node input sources</a>, and <span class="key">exactly one</span> <a class="term-ref" href="#term-terminal-node">terminal node</a> that no other node consumes.</li>
+  <li><span class="must">Interprets</span> a graph in deterministic <a class="term-ref" href="#term-topological-order">topological order</a>, resolving each node's inputs from <a class="term-ref" href="#term-graph-external-input">graph external inputs</a> and upstream <a class="term-ref" href="#term-node-output">node outputs</a> and invoking the injected <a class="term-ref" href="#term-node-runner">node runner callback</a>.</li>
+  <li><span class="must">Reuses</span> caller-supplied <a class="term-ref" href="#term-completed-node-output">completed node outputs</a>: a valid entry becomes that node's successful <a class="term-ref" href="#term-node-outcome">outcome</a> and its <a class="term-ref" href="#term-node-runner">node runner</a> invocation is skipped; an unknown node id, an invalid output, or a missing declared output field raises a typed error before any node runs.</li>
+  <li>A failed node marks its downstream dependents <span class="key">blocked</span>; the run produces a typed <a class="term-ref" href="#term-node-outcome">node outcome</a> for every node and never raises out of node failure.</li>
+  <li>The <a class="term-ref" href="#term-graph-output">graph output</a> is the <a class="term-ref" href="#term-terminal-node">terminal node's</a> <a class="term-ref" href="#term-node-output">node output</a> unchanged, under the same declared output contract, with <span class="key">no terminal-only shape</span>.</li>
+  <li>The <a class="term-ref" href="#term-graph-run-result">graph run result</a> carries per-attempt failure evidence as references only rather than duplicating the referenced payloads, carries no external stage state, and has <span class="key">no separate authoritative persistence path</span>.</li>
+  <li>The node type reference and field type are <span class="key">open strings</span> the interpreter never dispatches on; all type behavior lives in the injected <a class="term-ref" href="#term-node-runner">node runner callback</a>.</li>
+</ul>
+
+<div class="section-head" id="scope"><h2>In vs. Out of Scope</h2></div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>In scope</th><th>Out of scope</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>
+        <ul>
+          <li>The versioned, variable-bearing <a class="term-ref" href="#term-graph-definition">graph definition</a> artifact and its <a class="term-ref" href="#term-materialization">materialization</a> into <a class="term-ref" href="#term-graph-config">graph configs</a></li>
+          <li>The native config vocabulary — <a class="term-ref" href="#term-node-config">node</a> structure, <a class="term-ref" href="#term-node-input-source">node input source</a> grammar, and open <a class="term-ref" href="#term-variable">variable</a> assignments</li>
+          <li>Structural <a class="term-ref" href="#term-validation">validation</a>: acyclicity, unique node ids, source legality, exactly one <a class="term-ref" href="#term-terminal-node">terminal node</a></li>
+          <li><a class="term-ref" href="#term-finite-json">Finite-JSON</a> and <a class="term-ref" href="#term-canonical-json">canonical-JSON</a> validation and rendering for identity</li>
+          <li>Deterministic <a class="term-ref" href="#term-topological-order">topological</a> interpretation producing <a class="term-ref" href="#term-node-outcome">node outcomes</a>, <a class="term-ref" href="#term-graph-output">graph output</a>, and the <a class="term-ref" href="#term-graph-run-result">graph run result</a></li>
+          <li><a class="term-ref" href="#term-graph-config">Graph config</a> identity: selecting the <a class="term-ref" href="#term-identity-payload">identity payload</a> and computing the <a class="term-ref" href="#term-graph-hash">graph hash</a></li>
+          <li>Config-assembly builders and inline subgraph composition</li>
+          <li>Error diagnostics</li>
+        </ul>
+      </td>
+      <td>
+        <ul>
+          <li>Durability, retries, and scheduling</li>
+          <li>Persistence and storage references</li>
+          <li>Prompt, provider, and domain (provider/eval config) semantics</li>
+          <li>The node type behavior behind the <a class="term-ref" href="#term-node-runner">node runner callback</a></li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>Caller-side boundary terms.</strong> Three concepts are caller-owned and named here only to fix the boundary: <dfn class="term-name" id="term-rollout-result">Rollout Result</dfn> is the enclosing caller-side result that owns provider bodies and attempt records — the <a class="term-ref" href="#term-graph-run-result">graph run result</a> references into it; <dfn class="term-name" id="term-provider-call-attempt">Provider Call Attempt</dfn> is a caller-side per-attempt record the <a class="term-ref" href="#term-graph-run-result">graph run result</a> carries references to only; and <dfn class="term-name" id="term-platform-stage">Platform Stage</dfn> is caller-side orchestration state the <a class="term-ref" href="#term-graph-run-result">graph run result</a> never holds.</p>
+
+<div class="section-head" id="exported-names"><h2>Exported Names</h2></div>
+
+<p class="aside">Each row maps a term, or a group of supporting exports, to names in <a href="https://github.com/danielle-rothermel/dr-graph/blob/main/src/dr_graph/__init__.py"><code>dr_graph.__all__</code></a>. Every exported name appears exactly once in the names column; there are no aliases or alternate spellings. The primitive terms and the concepts <a class="term-ref" href="#term-hash">hash</a>, <a class="term-ref" href="#term-materialization">materialization</a>, <a class="term-ref" href="#term-identity-payload">identity payload</a>, <a class="term-ref" href="#term-identity-document">identity document</a>, <a class="term-ref" href="#term-canonical-identity-json">canonical identity JSON</a>, <a class="term-ref" href="#term-identity-hash">identity hash</a>, <a class="term-ref" href="#term-content-hash">content hash</a>, <a class="term-ref" href="#term-variable">variable</a>, <a class="term-ref" href="#term-graph">graph</a>, <a class="term-ref" href="#term-graph-external-input">graph external input</a>, <a class="term-ref" href="#term-completed-node-output">completed node output</a>, <a class="term-ref" href="#term-outcome">outcome</a>, <a class="term-ref" href="#term-terminal-node">terminal node</a>, <a class="term-ref" href="#term-graph-output">graph output</a>, <a class="term-ref" href="#term-provenance">provenance</a>, and <a class="term-ref" href="#term-rollout-variant">rollout variant</a> name concepts or roles without their own exports, so they have no row.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Term</th><th>Exported names</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><a class="term-ref" href="#term-graph-definition">Graph Definition</a></td>
+      <td><code>GraphDefinition</code>, <code>NodeDefinition</code></td>
+      <td><code>GraphDefinition.materialize</code> binds concrete <a class="term-ref" href="#term-variable">variable</a> values to every node and returns a <code>GraphConfig</code>; each <code>NodeDefinition</code> declares one node's <a class="term-ref" href="#term-dag">DAG</a> wiring and required variable names.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-graph-config">Graph Config</a></td>
+      <td><code>GraphConfig</code></td>
+      <td>Construction validates the whole <a class="term-ref" href="#term-dag">DAG</a>. Exposed as <code>GraphConfig</code>, defined in the <code>spec</code> module.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-node-config">Node (Config)</a></td>
+      <td><code>NodeConfig</code>, <code>NodeFieldSpec</code>, <code>FieldRole</code></td>
+      <td>The umbrella term is <a class="term-ref" href="#term-node-primitive">node</a>; the export is <code>NodeConfig</code>. <code>NodeFieldSpec</code> is one declared input or output field, tagged by <code>FieldRole</code> (<code>INPUT</code> or <code>OUTPUT</code>). Its <code>NodeFieldSpec.type_name</code> is the open field-type string, defaulting to <code>"str"</code> (<code>DEFAULT_FIELD_TYPE</code>); the default value is serialized into the <a class="term-ref" href="#term-identity-payload">identity payload</a>, so changing the default is a hash-breaking change.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-node-input-source">Node Input Source</a></td>
+      <td><code>NodeInputSourceRef</code>, <code>NodeInputSourceKind</code>, <code>as_node_input_source_ref</code></td>
+      <td><code>NodeInputSourceKind</code> is closed at <code>GRAPH_EXTERNAL</code> and <code>NODE_OUTPUT</code>; <code>as_node_input_source_ref</code> parses the <code>task.&lt;field&gt;</code> or <code>node_id.&lt;field&gt;</code> string form into a <code>NodeInputSourceRef</code>.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-graph-hash">Graph Hash</a></td>
+      <td><code>graph_hash</code>, <code>graph_config_identity_document</code>, <code>graph_config_identity_payload</code>, <code>GRAPH_CONFIG_IDENTITY_SCHEMA</code>, <code>GRAPH_CONFIG_IDENTITY_SCHEMA_VERSION</code></td>
+      <td><code>graph_hash</code> is the headline identity operation. <code>graph_config_identity_payload</code> selects the fields that determine identity and <code>graph_config_identity_document</code> wraps them in the versioned <a class="term-ref" href="#term-identity-document">identity document</a> named by the two schema constants.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-graph-run">Graph Run</a></td>
+      <td><code>execute_graph</code>, <code>resolve_node_inputs</code>, <code>RunNode</code></td>
+      <td><code>execute_graph</code> interprets one <a class="term-ref" href="#term-graph-config">graph config</a> and also accepts <a class="term-ref" href="#term-completed-node-output">completed node outputs</a> for resume; <code>RunNode</code> is the <a class="term-ref" href="#term-node-runner">node runner callback</a> type; <code>resolve_node_inputs</code> gathers one node's inputs from external inputs and upstream outputs.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-node-output">Node Output</a></td>
+      <td><code>NodeOutput</code></td>
+      <td>The validated per-node output object carrying the node's produced values.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-node-outcome">Node Outcome</a></td>
+      <td><code>NodeOutcome</code>, <code>NodeOutcomeStatus</code></td>
+      <td><code>NodeOutcomeStatus</code> is <code>SUCCESS</code>, <code>ERROR</code>, or <code>BLOCKED</code>; a success carries a <code>NodeOutput</code>, a non-success carries error or block evidence.</td>
+    </tr>
+    <tr>
+      <td><a class="term-ref" href="#term-graph-run-result">Graph Run Result</a></td>
+      <td><code>GraphRunResult</code>, <code>GraphRunStatus</code>, <code>NodeError</code>, <code>TerminalError</code>, <code>ClassifiedFailure</code></td>
+      <td><code>GraphRunStatus</code> adds <code>PARTIAL</code> to the outcome statuses. <code>TerminalError</code> is the terminal node's non-success snapshot and <code>NodeError</code> the per-node one; <code>ClassifiedFailure</code> is the structured failure shape a <code>NodeError</code> is built from when a node raises an exception. The result's <a class="term-ref" href="#term-provenance">provenance</a> field is <code>provenance</code> and the per-attempt failure-evidence references field is <code>attempt_evidence_refs</code>.</td>
+    </tr>
+    <tr>
+      <td>Composition</td>
+      <td><code>node</code>, <code>graph</code>, <code>inline_subgraph</code></td>
+      <td>Neutral, provider-unaware builders: <code>node</code> and <code>graph</code> assemble a config; <code>inline_subgraph</code> flattens a subgraph's nodes under a prefix into a parent graph.</td>
+    </tr>
+    <tr>
+      <td>External-input validation</td>
+      <td><code>validate_graph_external_inputs</code></td>
+      <td>Checks that every <code>task.&lt;field&gt;</code> a <a class="term-ref" href="#term-graph-config">graph config</a> binds is among the caller's allowed external fields.</td>
+    </tr>
+    <tr>
+      <td>Error diagnostics</td>
+      <td><code>GraphExecutionError</code>, <code>GraphValidationError</code>, <code>InputResolutionError</code>, <code>NodeExecutionError</code>, <code>CompletedNodeError</code></td>
+      <td>One taxonomy rooted at <code>GraphExecutionError</code>. <code>GraphValidationError</code> also subclasses <code>ValueError</code> for config-time <a class="term-ref" href="#term-validation">validation</a>; <code>InputResolutionError</code>, <code>NodeExecutionError</code>, and <code>CompletedNodeError</code> arise during a <a class="term-ref" href="#term-graph-run">graph run</a>. The run-summary error snapshots <code>NodeError</code> and <code>TerminalError</code> are listed with the graph run result above.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="colophon">
+  <p><strong>Scope.</strong> This sheet is the authoritative statement of the top-level computation-graph contract dr-graph implements. Exported names match <code>src/dr_graph/__init__.py</code>. The separate public <code>dr_graph.flow</code> namespace is outside this contract.</p>
+</div>
+
+</main>
+</body>
+</html>

@@ -19,9 +19,7 @@ def _minimum_cost_by_enumeration(
     required_flow: int,
 ) -> int | None:
     minimum: int | None = None
-    for flows in itertools.product(
-        *(range(arc.capacity + 1) for arc in arcs)
-    ):
+    for flows in itertools.product(*(range(arc.capacity + 1) for arc in arcs)):
         balances = {NodeId("s"): 0, NodeId("a"): 0, NodeId("t"): 0}
         for arc, flow in zip(arcs, flows, strict=True):
             balances[arc.source] += flow
@@ -33,8 +31,7 @@ def _minimum_cost_by_enumeration(
         }:
             continue
         cost = sum(
-            flow * arc.unit_cost
-            for arc, flow in zip(arcs, flows, strict=True)
+            flow * arc.unit_cost for arc, flow in zip(arcs, flows, strict=True)
         )
         minimum = cost if minimum is None else min(minimum, cost)
     return minimum

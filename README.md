@@ -180,3 +180,20 @@ class GraphRunResult(BaseModel):
     attempt_evidence_refs: tuple[str, ...]
     provenance: dict[str, Jsonable]
 ```
+
+## Flow optimization
+
+```python
+from dr_graph.flow import FlowArc, FlowProblem, solve_min_cost_flow
+from dr_graph.flow.transport import (
+    TransportCell,
+    TransportProblem,
+    solve_separable_transport,
+)
+```
+
+`dr_graph.flow` solves exact deterministic integer min-cost-flow problems.
+`dr_graph.flow.transport` solves balanced separable convex transportation
+problems from nondecreasing marginal costs. These optimization primitives are
+independent of graph configuration and interpretation; neither namespace
+re-exports the other.
