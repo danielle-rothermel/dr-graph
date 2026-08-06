@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `dr_graph.flow` provides exact deterministic min-cost flow over integer capacities and costs.
-- `dr_graph.flow.transport` provides exact separable convex transportation from nondecreasing marginal costs.
+- `dr_graph.flow` provides exact deterministic single-source, single-sink min-cost flow over nonnegative integer capacities and costs.
+- `dr_graph.flow.transport` provides exact separable convex transportation from nonnegative, nondecreasing integer marginal costs.
 
 ### Notes
 

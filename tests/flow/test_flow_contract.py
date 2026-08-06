@@ -83,6 +83,31 @@ def test_problem_copies_caller_owned_collections_to_tuples() -> None:
     assert isinstance(problem.arcs, tuple)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("nodes", "st"),
+        ("nodes", {NodeId("s"), NodeId("t")}),
+        ("arcs", set()),
+    ],
+)
+def test_problem_rejects_scalar_and_unordered_collections(
+    field: str,
+    value: object,
+) -> None:
+    nodes = cast("tuple[NodeId, ...]", value) if field == "nodes" else ()
+    arcs = cast("tuple[FlowArc, ...]", value) if field == "arcs" else ()
+
+    with pytest.raises(FlowProblemError, match="tuple or list"):
+        FlowProblem(
+            nodes=nodes,
+            arcs=arcs,
+            source=NodeId("s"),
+            sink=NodeId("t"),
+            required_flow=0,
+        )
+
+
 def test_public_values_are_frozen_and_slotted() -> None:
     problem = _problem()
     result = solve_min_cost_flow(problem)

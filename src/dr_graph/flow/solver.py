@@ -27,7 +27,7 @@ class _ResidualArc:
 
 
 def solve_min_cost_flow(problem: FlowProblem) -> FlowResult:
-    """Send exactly ``required_flow`` at minimum integer cost.
+    """Send exactly ``required_flow`` at minimum nonnegative integer cost.
 
     Equal-cost choices follow node declaration rank and residual adjacency
     order. Residual adjacency is derived from arc declaration order.

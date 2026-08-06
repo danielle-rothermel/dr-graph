@@ -7,7 +7,8 @@ import pytest
 
 import dr_graph
 import dr_graph.flow
-from dr_graph.flow.errors import FlowProblemError, InfeasibleFlowError
+from dr_graph.flow import transport
+from dr_graph.flow.errors import FlowProblemError
 from dr_graph.flow.transport import (
     InfeasibleTransportError,
     TransportCell,
@@ -15,6 +16,7 @@ from dr_graph.flow.transport import (
     TransportSolution,
     solve_separable_transport,
 )
+from dr_graph.flow.transport.solver import _build_residual_network
 
 
 def _problem(
@@ -48,6 +50,15 @@ def _assign_attribute(value: object, name: str, replacement: object) -> None:
 def test_transport_api_stays_in_explicit_transport_module() -> None:
     assert not hasattr(dr_graph, "TransportProblem")
     assert not hasattr(dr_graph.flow, "TransportProblem")
+    assert not hasattr(transport, "FlowProblem")
+    assert not hasattr(transport, "solve_min_cost_flow")
+    assert transport.__all__ == [
+        "InfeasibleTransportError",
+        "TransportCell",
+        "TransportProblem",
+        "TransportSolution",
+        "solve_separable_transport",
+    ]
 
 
 def test_one_to_one_transport_uses_each_marginal_unit() -> None:
@@ -91,10 +102,10 @@ def test_zero_total_returns_shaped_zero_matrix_without_solving(
     )
 
     def fail_if_called(_problem: object) -> None:
-        pytest.fail("zero-total transport must not call the flow solver")
+        pytest.fail("zero-total transport must not build a residual network")
 
     monkeypatch.setattr(
-        "dr_graph.flow.transport.solve_min_cost_flow",
+        "dr_graph.flow.transport.solver._build_residual_network",
         fail_if_called,
     )
 
@@ -187,6 +198,27 @@ def test_convex_costs_choose_lowest_global_marginal_units() -> None:
     assert solution.total_cost == 12
 
 
+def test_convex_cell_uses_constant_residual_edges() -> None:
+    marginal_costs = tuple(range(1_000))
+    problem = _problem(
+        (len(marginal_costs),),
+        (len(marginal_costs),),
+        (_cell(0, 0, *marginal_costs),),
+    )
+
+    residual, cell_states, _source_index, _sink_index = (
+        _build_residual_network(problem)
+    )
+
+    assert sum(len(edges) for edges in residual) == 6
+    assert len(cell_states) == 1
+    assert solve_separable_transport(problem) == TransportSolution(
+        allocations=((1_000,),),
+        total_flow=1_000,
+        total_cost=sum(marginal_costs),
+    )
+
+
 def test_equal_cost_ties_follow_ordered_source_inputs() -> None:
     solution = solve_separable_transport(
         _problem(
@@ -220,6 +252,30 @@ def test_problem_copies_caller_owned_collections() -> None:
     cells.clear()
 
     assert problem == _problem((1,), (1,), (_cell(0, 0, 2),))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("supplies", {1}),
+        ("demands", {1}),
+        ("cells", set()),
+    ],
+)
+def test_problem_rejects_unordered_collections(
+    field: str,
+    value: object,
+) -> None:
+    supplies = cast("tuple[int, ...]", value) if field == "supplies" else (1,)
+    demands = cast("tuple[int, ...]", value) if field == "demands" else (1,)
+    cells = (
+        cast("tuple[TransportCell, ...]", value)
+        if field == "cells"
+        else (_cell(0, 0, 1),)
+    )
+
+    with pytest.raises(FlowProblemError, match="tuple or list"):
+        _problem(supplies, demands, cells)
 
 
 def test_solution_copies_caller_owned_allocations() -> None:
@@ -342,6 +398,15 @@ def test_cell_rejects_empty_marginal_costs() -> None:
         _cell(0, 0)
 
 
+def test_cell_rejects_unordered_marginal_costs() -> None:
+    with pytest.raises(FlowProblemError, match="tuple or list"):
+        TransportCell(
+            source_index=0,
+            destination_index=0,
+            marginal_costs=cast("tuple[int, ...]", {1, 2}),
+        )
+
+
 @pytest.mark.parametrize("cost", [-1, True, 1.0])
 def test_cell_rejects_invalid_marginal_costs(cost: object) -> None:
     with pytest.raises(FlowProblemError, match="marginal cost"):
@@ -369,13 +434,11 @@ def test_solver_rejects_non_transport_problem() -> None:
 def test_local_capacity_insufficiency_is_valid_but_infeasible(
     problem: TransportProblem,
 ) -> None:
-    with pytest.raises(InfeasibleTransportError) as raised:
+    with pytest.raises(InfeasibleTransportError):
         solve_separable_transport(problem)
 
-    assert isinstance(raised.value.__cause__, InfeasibleFlowError)
 
-
-def test_global_connectivity_infeasibility_preserves_flow_cause() -> None:
+def test_global_connectivity_infeasibility_raises_typed_error() -> None:
     problem = _problem(
         (1, 1),
         (1, 1),
@@ -385,7 +448,5 @@ def test_global_connectivity_infeasibility_preserves_flow_cause() -> None:
         ),
     )
 
-    with pytest.raises(InfeasibleTransportError) as raised:
+    with pytest.raises(InfeasibleTransportError):
         solve_separable_transport(problem)
-
-    assert isinstance(raised.value.__cause__, InfeasibleFlowError)

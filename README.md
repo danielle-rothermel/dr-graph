@@ -192,8 +192,9 @@ from dr_graph.flow.transport import (
 )
 ```
 
-`dr_graph.flow` solves exact deterministic integer min-cost-flow problems.
+`dr_graph.flow` solves exact deterministic single-source, single-sink
+min-cost-flow problems with nonnegative integer capacities and costs.
 `dr_graph.flow.transport` solves balanced separable convex transportation
-problems from nondecreasing marginal costs. These optimization primitives are
-independent of graph configuration and interpretation; neither namespace
-re-exports the other.
+problems from nonnegative, nondecreasing integer marginal costs. These
+optimization primitives are independent of graph configuration and
+interpretation; neither namespace re-exports the other.

@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from copy import deepcopy
 
 from dr_graph.flow import (
     ArcFlow,
@@ -114,7 +115,7 @@ def test_solver_does_not_mutate_problem() -> None:
         sink=NodeId("t"),
         required_flow=1,
     )
-    original = problem
+    original = deepcopy(problem)
 
     solve_min_cost_flow(problem)
 

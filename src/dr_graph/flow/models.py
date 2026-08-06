@@ -9,6 +9,16 @@ NodeId = NewType("NodeId", str)
 ArcId = NewType("ArcId", str)
 
 
+def _snapshot_ordered_collection[T](
+    value: tuple[T, ...] | list[T],
+    *,
+    name: str,
+) -> tuple[T, ...]:
+    if type(value) not in (tuple, list):
+        raise FlowProblemError(f"{name} must be a tuple or list")
+    return tuple(value)
+
+
 def _validate_identity(value: object, *, name: str) -> None:
     if type(value) is not str:
         raise FlowProblemError(f"{name} must be an exact string")
@@ -52,8 +62,16 @@ class FlowProblem:
     required_flow: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "nodes", tuple(self.nodes))
-        object.__setattr__(self, "arcs", tuple(self.arcs))
+        object.__setattr__(
+            self,
+            "nodes",
+            _snapshot_ordered_collection(self.nodes, name="nodes"),
+        )
+        object.__setattr__(
+            self,
+            "arcs",
+            _snapshot_ordered_collection(self.arcs, name="arcs"),
+        )
         _validate_problem(self)
 
 
@@ -116,4 +134,11 @@ class FlowResult:
     arc_flows: tuple[ArcFlow, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "arc_flows", tuple(self.arc_flows))
+        object.__setattr__(
+            self,
+            "arc_flows",
+            _snapshot_ordered_collection(
+                self.arc_flows,
+                name="arc_flows",
+            ),
+        )
