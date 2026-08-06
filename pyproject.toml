@@ -1,7 +1,7 @@
 [project]
 name = "dr-graph"
 version = "0.1.2"
-description = "Hashable computation graphs plus deterministic min-cost flow and separable transport."
+description = "Hashable computation graphs plus exact min-cost flow and separable transport."
 readme = "README.md"
 license = "MIT"
 authors = [
