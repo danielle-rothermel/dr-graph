@@ -269,3 +269,91 @@ exported_symbols = [
   "NodeExecutionError",
   "CompletedNodeError",
 ]
+
+[[terms]]
+name = "minimum-cost flow problem"
+definition = """
+A directed capacitated network with one source, one sink, nonnegative integer \
+arc costs, and an exact amount of flow to send at minimum total cost. Declared \
+node and arc order resolves otherwise equal choices deterministically."""
+exported_symbols = [
+  "dr_graph.flow.ArcId",
+  "dr_graph.flow.FlowProblem",
+  "dr_graph.flow.NodeId",
+]
+
+[[terms]]
+name = "flow arc"
+definition = """
+One directed route in a minimum-cost flow problem, identified within the \
+problem and bounded by a nonnegative integer capacity and unit cost. Solved \
+flow for the route is reported under the same identity."""
+exported_symbols = [
+  "dr_graph.flow.ArcFlow",
+  "dr_graph.flow.FlowArc",
+]
+part_of = ["minimum-cost flow problem"]
+
+[[terms]]
+name = "minimum-cost flow solution"
+definition = """
+The exact required flow at minimum total cost, with one solved flow value for \
+every declared arc in declaration order."""
+exported_symbols = [
+  "dr_graph.flow.FlowResult",
+  "dr_graph.flow.solve_min_cost_flow",
+]
+
+[[terms]]
+name = "flow failure"
+definition = """
+A typed failure distinguishing an invalid flow problem, a valid network that \
+cannot carry the required flow, and an internal solver postcondition violation."""
+exported_symbols = [
+  "dr_graph.flow.FlowError",
+  "dr_graph.flow.FlowPostconditionError",
+  "dr_graph.flow.FlowProblemError",
+  "dr_graph.flow.InfeasibleFlowError",
+]
+
+[[terms]]
+name = "separable transport problem"
+definition = """
+A balanced allocation problem from indexed supplies to indexed demands. Each \
+available source-destination cell has nonnegative, nondecreasing marginal \
+costs, with one unit of capacity per marginal-cost entry."""
+exported_symbols = [
+  "dr_graph.flow.transport.TransportProblem",
+]
+
+[[terms]]
+name = "transport cell"
+definition = """
+One available source-destination route in a separable transport problem. An \
+omitted cell is unavailable, while each declared marginal cost contributes one \
+unit of route capacity."""
+exported_symbols = [
+  "dr_graph.flow.transport.TransportCell",
+]
+part_of = ["separable transport problem"]
+
+[[terms]]
+name = "separable transport solution"
+definition = """
+The exact minimum-cost allocation for a separable transport problem, represented \
+as a matrix in source and destination index order with total flow and cost."""
+exported_symbols = [
+  "dr_graph.flow.transport.TransportSolution",
+  "dr_graph.flow.transport.solve_separable_transport",
+]
+
+[[terms]]
+name = "transport failure"
+definition = """
+A typed failure distinguishing an invalid transport problem from a valid \
+balanced problem whose available connected capacity cannot satisfy every \
+supply and demand."""
+exported_symbols = [
+  "dr_graph.flow.transport.FlowProblemError",
+  "dr_graph.flow.transport.InfeasibleTransportError",
+]

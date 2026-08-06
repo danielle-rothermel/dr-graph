@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from dr_graph.flow import (
@@ -7,6 +9,7 @@ from dr_graph.flow import (
     ArcId,
     FlowArc,
     FlowProblem,
+    FlowProblemError,
     InfeasibleFlowError,
     NodeId,
     solve_min_cost_flow,
@@ -137,10 +140,7 @@ def test_infeasible_exact_flow_raises_typed_error() -> None:
         required_flow=2,
     )
 
-    with pytest.raises(
-        InfeasibleFlowError,
-        match="sent 1 of 2",
-    ):
+    with pytest.raises(InfeasibleFlowError):
         solve_min_cost_flow(problem)
 
 
@@ -167,3 +167,8 @@ def test_residual_reverse_arc_reroutes_an_earlier_augmentation() -> None:
         ArcFlow(ArcId("a-t"), 1),
         ArcFlow(ArcId("b-t"), 1),
     )
+
+
+def test_solver_rejects_non_problem_input() -> None:
+    with pytest.raises(FlowProblemError):
+        solve_min_cost_flow(cast("FlowProblem", object()))

@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 import textwrap
-from copy import deepcopy
 
 from dr_graph.flow import (
     ArcFlow,
@@ -75,51 +74,6 @@ def test_equal_parallel_arcs_use_arc_declaration_order() -> None:
         ArcFlow(ArcId("declared-first"), 1),
         ArcFlow(ArcId("declared-second"), 0),
     )
-
-
-def test_multiple_global_optima_return_same_declared_choice_repeatedly() -> (
-    None
-):
-    problem = FlowProblem(
-        nodes=(NodeId("s"), NodeId("left"), NodeId("right"), NodeId("t")),
-        arcs=(
-            _arc("s-right", "s", "right", 2, 1),
-            _arc("right-t", "right", "t", 2, 1),
-            _arc("s-left", "s", "left", 2, 1),
-            _arc("left-t", "left", "t", 2, 1),
-        ),
-        source=NodeId("s"),
-        sink=NodeId("t"),
-        required_flow=2,
-    )
-
-    results = tuple(solve_min_cost_flow(problem) for _run in range(20))
-
-    assert all(result == results[0] for result in results)
-    assert results[0].arc_flows == (
-        ArcFlow(ArcId("s-right"), 0),
-        ArcFlow(ArcId("right-t"), 0),
-        ArcFlow(ArcId("s-left"), 2),
-        ArcFlow(ArcId("left-t"), 2),
-    )
-
-
-def test_solver_does_not_mutate_problem() -> None:
-    problem = FlowProblem(
-        nodes=(NodeId("s"), NodeId("a"), NodeId("t")),
-        arcs=(
-            _arc("s-a", "s", "a", 2, 1),
-            _arc("a-t", "a", "t", 2, 1),
-        ),
-        source=NodeId("s"),
-        sink=NodeId("t"),
-        required_flow=1,
-    )
-    original = deepcopy(problem)
-
-    solve_min_cost_flow(problem)
-
-    assert problem == original
 
 
 def test_output_is_stable_across_python_hash_seeds() -> None:

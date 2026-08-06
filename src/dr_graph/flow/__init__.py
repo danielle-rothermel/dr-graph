@@ -1,5 +1,3 @@
-"""Exact deterministic min-cost flow primitives."""
-
 from dr_graph.flow.errors import (
     FlowError,
     FlowPostconditionError,

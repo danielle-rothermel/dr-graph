@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 
 - The top-level `dr_graph` computation API remains separate from the flow optimization namespace.
+- The README and authoritative terms and contracts describe both optimization namespaces and their stable public shapes.
+- Tag-triggered releases verify that the release commit belongs to `main` before publishing.
 
 ## [0.1.1] - 2026-08-05
 

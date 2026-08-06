@@ -107,3 +107,33 @@ Embedding orchestration or domain policy in the graph package would couple a \
 general graph contract to one execution platform. The injected node runner \
 and reference-only evidence boundary keep those responsibilities explicit."""
 date = "2026-08-05"
+
+[[contracts]]
+title = "Exact ordered minimum-cost flow"
+statement = """
+solve_min_cost_flow sends exactly the requested nonnegative integer flow at \
+minimum total cost through declared nonnegative-capacity, nonnegative-integer-\
+cost arcs. The result reports every arc in declaration order, and equal-cost \
+choices follow declared node and arc order deterministically."""
+rationale = """
+Exact flow, exact cost, and declared-order results make the primitive suitable \
+for reproducible optimization and downstream accounting. Implicit iteration \
+order or omitted zero-flow arcs would make equal optima and result alignment \
+unstable across callers."""
+date = "2026-08-06"
+check = "uv run --locked pytest tests/flow"
+
+[[contracts]]
+title = "Balanced separable transportation"
+statement = """
+Every separable transport problem has equal total supply and demand; omitted \
+cells are unavailable, and each declared cell contributes one unit of capacity \
+per nonnegative, nondecreasing marginal cost. solve_separable_transport returns \
+an exact minimum-cost allocation matrix in source and destination index order \
+or raises typed infeasibility when available connected capacity is insufficient."""
+rationale = """
+These rules give missing routes, capacity, convex cost, and output coordinates \
+one unambiguous meaning. Treating missing cells as zero-cost routes or accepting \
+decreasing marginals would solve a different optimization problem."""
+date = "2026-08-06"
+check = "uv run --locked pytest tests/flow/transport"

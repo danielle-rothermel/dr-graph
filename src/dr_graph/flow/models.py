@@ -119,8 +119,6 @@ def _validate_problem(problem: FlowProblem) -> None:
 
 @dataclass(frozen=True, slots=True)
 class ArcFlow:
-    """The solved flow for one declared arc."""
-
     arc_id: ArcId
     flow: int
 
