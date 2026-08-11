@@ -289,6 +289,29 @@ def test_node_error_preserves_chained_underlying_exception_type() -> None:
     )
 
 
+def test_node_error_merges_existing_and_new_dropped_metadata() -> None:
+    class MetadataWithDropsError(Exception):
+        def __init__(self) -> None:
+            super().__init__("callback failed")
+            self.metadata = {
+                "provider": "test",
+                "opaque": object(),
+                DROPPED_METADATA_KEY: [
+                    {"key": "prior", "reason": DROP_REASON_STRICT_JSON},
+                ],
+            }
+
+    result = _execute_raising_node(MetadataWithDropsError())
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata["provider"] == "test"
+    assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
+        {"key": "prior", "reason": DROP_REASON_STRICT_JSON},
+        {"key": "opaque", "reason": DROP_REASON_STRICT_JSON},
+    ]
+
+
 def test_node_error_captures_traceback_from_active_exception() -> None:
     script = textwrap.dedent(
         """

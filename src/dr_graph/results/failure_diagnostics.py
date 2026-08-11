@@ -168,9 +168,37 @@ def _read_metadata(error: BaseException) -> tuple[object, bool]:
     return metadata, False
 
 
+def _merge_dropped_metadata_lists(
+    result: dict[str, Jsonable],
+    existing: list[Jsonable],
+) -> None:
+    if not existing:
+        return
+    new_drops = result.get(DROPPED_METADATA_KEY)
+    if isinstance(new_drops, list):
+        result[DROPPED_METADATA_KEY] = [*existing, *new_drops]
+        return
+    result[DROPPED_METADATA_KEY] = existing
+
+
+def _read_existing_dropped_metadata(
+    metadata_attr: Mapping[Any, Any],
+) -> tuple[list[Jsonable], bool]:
+    if DROPPED_METADATA_KEY not in metadata_attr:
+        return [], False
+    try:
+        validated = strict_json_value(metadata_attr[DROPPED_METADATA_KEY])
+    except StrictJsonError:
+        return [], True
+    if isinstance(validated, list):
+        return validated, False
+    return [], True
+
+
 def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
     metadata_attr, accessor_failed = _read_metadata(error)
     result: dict[str, Jsonable] = {}
+    existing_dropped: list[Jsonable] = []
     if accessor_failed:
         _record_dropped_metadata(
             result,
@@ -178,7 +206,18 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
             reason=DROP_REASON_METADATA_ACCESSOR_FAILED,
         )
     elif isinstance(metadata_attr, Mapping):
+        existing_dropped, invalid_existing = _read_existing_dropped_metadata(
+            metadata_attr,
+        )
+        if invalid_existing:
+            _record_dropped_metadata(
+                result,
+                key=DROPPED_METADATA_KEY,
+                reason=DROP_REASON_STRICT_JSON,
+            )
         for key, value in metadata_attr.items():
+            if key == DROPPED_METADATA_KEY:
+                continue
             if not isinstance(key, str):
                 try:
                     dropped_key = strict_json_value(key)
@@ -198,6 +237,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
                     key=key,
                     reason=DROP_REASON_STRICT_JSON,
                 )
+        _merge_dropped_metadata_lists(result, existing_dropped)
 
     underlying = _exception_attribute(error, "underlying")
     if isinstance(underlying, BaseException):
