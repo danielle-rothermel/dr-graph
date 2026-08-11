@@ -52,8 +52,6 @@ def test_result_json_dump_is_persistable_shape() -> None:
         "terminal_node_id": "direct",
         "terminal_output": "ok",
         "terminal_error": None,
-        "attempt_evidence_refs": [],
-        "provenance": {},
     }
 
 
@@ -113,8 +111,6 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
             },
             "blocked_by": [],
         },
-        "attempt_evidence_refs": [],
-        "provenance": {},
     }
 
 
@@ -174,8 +170,6 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
             "error": None,
             "blocked_by": ["encoder"],
         },
-        "attempt_evidence_refs": [],
-        "provenance": {},
     }
 
 
@@ -215,8 +209,6 @@ def test_cancelled_outcome_json_dump_is_persistable_shape() -> None:
             "error": None,
             "blocked_by": [],
         },
-        "attempt_evidence_refs": [],
-        "provenance": {},
     }
 
 

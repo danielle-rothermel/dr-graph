@@ -78,7 +78,7 @@ class TerminalError(BaseModel):
 
 
 class GraphRunResult(BaseModel):
-    """Graph-run result with references to caller-owned attempt evidence."""
+    """Graph-complete result of one graph run."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -90,10 +90,8 @@ class GraphRunResult(BaseModel):
     terminal_node_id: StrictStr
     terminal_output: Jsonable = None
     terminal_error: TerminalError | None = None
-    attempt_evidence_refs: tuple[StrictStr, ...] = ()
-    provenance: dict[str, Jsonable] = Field(default_factory=dict)
 
-    @field_validator("external_inputs", "provenance", mode="before")
+    @field_validator("external_inputs", mode="before")
     @classmethod
     def validate_json_objects(cls, value: Any) -> dict[str, Jsonable]:
         return strict_json_object(value)

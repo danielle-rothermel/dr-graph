@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Removed
+
+- `GraphRunResult.attempt_evidence_refs` and `GraphRunResult.provenance`
+  (callers stamp association externally; per-leg evidence stays in
+  `NodeOutput.metadata`).
+
 ### Changed
 
+- Ratified graph-config ownership, serial intra-graph execution, and
+  `graph_hash` as a composable inner identity layer in terms and contracts.
 - `NodeError` now captures exception tracebacks and records metadata extraction
   losses in `metadata["dropped_metadata"]` instead of dropping them silently.
 - `NodeError.error_type` is always the real exception type; caller-declared

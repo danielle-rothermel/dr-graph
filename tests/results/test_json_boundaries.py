@@ -31,7 +31,6 @@ def _result(**changes: Any) -> GraphRunResult:
         "execution_order": ("direct",),
         "terminal_node_id": "direct",
         "terminal_output": "ok",
-        "provenance": {},
     }
     fields.update(changes)
     return GraphRunResult(**fields)
@@ -61,10 +60,6 @@ BOUNDARIES: tuple[tuple[str, BoundaryFactory], ...] = (
     (
         "graph-terminal-output",
         lambda value: _result(terminal_output=value),
-    ),
-    (
-        "graph-provenance",
-        lambda value: _result(provenance={"payload": value}),
     ),
 )
 
@@ -101,11 +96,9 @@ def test_valid_nested_json_round_trips_without_normalization() -> None:
     result = _result(
         external_inputs={"input": value},
         terminal_output=value,
-        provenance={"trace": value},
     )
 
     dumped = json.loads(result.model_dump_json())
 
     assert dumped["external_inputs"] == {"input": value}
     assert dumped["terminal_output"] == value
-    assert dumped["provenance"] == {"trace": value}
