@@ -12,6 +12,7 @@ from dr_graph.core.json_values import strict_json_object, strict_json_value
 
 DROPPED_METADATA_KEY = "dropped_metadata"
 DECLARED_ERROR_TYPE_KEY = "declared_error_type"
+_MISSING_ATTRIBUTE = object()
 
 
 class MetadataDropReason(StrEnum):
@@ -68,9 +69,6 @@ class NodeError(BaseModel):
             metadata=metadata,
             traceback=_exception_traceback(error),
         )
-
-
-_MISSING_ATTRIBUTE = object()
 
 
 def _exception_attribute(error: object, name: str) -> object:

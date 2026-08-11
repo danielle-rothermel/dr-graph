@@ -18,13 +18,13 @@ from dr_graph.results.node_outcomes import (
     NodeOutput,
 )
 
+_INTERRUPTION_TYPES = (asyncio.CancelledError, KeyboardInterrupt)
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from dr_graph.configuration.graphs import GraphConfig
     from dr_graph.configuration.nodes import NodeConfig
-
-_INTERRUPTION_TYPES = (asyncio.CancelledError, KeyboardInterrupt)
 
 
 def execute_graph(
