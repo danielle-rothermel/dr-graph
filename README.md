@@ -148,12 +148,19 @@ class NodeOutcomeStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
+
+
+class NodeOutcomeSource(StrEnum):
+    FRESH = "fresh"
+    REUSED = "reused"
 
 
 class GraphRunStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
 ```
 
 ```python
@@ -168,6 +175,7 @@ class NodeOutcome(BaseModel):
     output: NodeOutput | None
     error: NodeError | None
     blocked_by: tuple[str, ...]
+    outcome_source: NodeOutcomeSource
 ```
 
 ```python
@@ -183,6 +191,58 @@ class GraphRunResult(BaseModel):
     attempt_evidence_refs: tuple[str, ...]
     provenance: dict[str, Jsonable]
 ```
+
+Successful nodes invoked in the current run carry `outcome_source=fresh`.
+Completed outputs supplied through `execute_graph(..., completed=...)` are
+recorded as successful outcomes with `outcome_source=reused`.
+
+## Failure diagnostics
+
+Node-behavior failures become `NodeOutcome` errors rather than escaping the
+graph run. dr-graph captures a strict-JSON `NodeError` snapshot from each
+exception and leaves fuller attempt evidence in caller-owned systems.
+
+```python
+class NodeError(BaseModel):
+    error_type: str
+    message: str
+    failure_class: str | None
+    metadata: dict[str, Jsonable]
+    traceback: str
+```
+
+`error_type` is always the real exception type
+(`module.qualname`). A caller-declared label may still be attached on the
+raising exception as an `error_type` attribute; when present, it is persisted
+in `metadata["declared_error_type"]` rather than replacing `NodeError.error_type`.
+
+`failure_class` values are owned by the raising layer. dr-graph infrastructure
+errors such as `InputResolutionError` and `NodeExecutionError` carry
+`failure_class="infrastructure"`. Callback exceptions may supply their own
+`failure_class` instance or class attribute.
+
+`NodeError.metadata` retains every strict-JSON metadata entry independently.
+When a metadata key or value cannot be persisted, dr-graph records the loss in
+`metadata["dropped_metadata"]` as a list of `{key, reason}` entries rather than
+silently narrowing evidence. Reason literals include `non_string_key`,
+`strict_json`, and `metadata_accessor_failed`.
+
+`NodeOutput.metadata` is the per-leg strict-JSON telemetry channel for
+successful node outputs. dr-graph validates it strictly and does not coerce or
+drop values.
+
+Interruptions during execution (`asyncio.CancelledError`, `KeyboardInterrupt`)
+mark the in-flight node `cancelled`, block remaining nodes, build a partial
+`GraphRunResult`, and re-raise `GraphRunInterruptedError` with that result
+available as `.partial_result` before the interruption propagates.
+
+```python
+class GraphRunInterruptedError(GraphExecutionError):
+    partial_result: GraphRunResult
+```
+
+`GraphRunResult.provenance` remains caller-supplied run-level metadata.
+`NodeOutcome.outcome_source` is the orthogonal per-node fresh-vs-reused axis.
 
 ## Flow optimization
 

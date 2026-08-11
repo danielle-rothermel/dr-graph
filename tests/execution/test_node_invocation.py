@@ -45,6 +45,7 @@ def test_missing_returned_output_field_becomes_node_execution_error() -> None:
     assert outcome.error.error_type == (
         f"{NodeExecutionError.__module__}.{NodeExecutionError.__qualname__}"
     )
+    assert outcome.error.failure_class == "infrastructure"
 
 
 def test_missing_secondary_output_becomes_producer_execution_error() -> None:
@@ -72,6 +73,7 @@ def test_missing_secondary_output_becomes_producer_execution_error() -> None:
     assert outcome.error.error_type == (
         f"{NodeExecutionError.__module__}.{NodeExecutionError.__qualname__}"
     )
+    assert outcome.error.failure_class == "infrastructure"
     assert "secondary" in outcome.error.message
 
 

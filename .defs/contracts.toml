@@ -63,12 +63,15 @@ statement = """
 All caller-supplied completed node outputs are validated before any node runner \
 invocation: each id names a graph node, each value is a valid node output that \
 contains every declared output field, and the completed set is dependency-\
-closed; accepted nodes become successful outcomes and are not invoked."""
+closed; accepted nodes become successful outcomes with outcome_source=reused \
+and are not invoked."""
 rationale = """
 Partial validation after execution begins could mix trusted new work with an \
 invalid continuation state. Dependency closure ensures every reused output has \
-the reused prerequisites needed to make that state coherent."""
-date = "2026-08-05"
+the reused prerequisites needed to make that state coherent. Recording \
+outcome_source=reused makes reuse recoverable for accounting without conflating \
+outcome state with provenance."""
+date = "2026-08-11"
 check = "uv run pytest tests/results/test_continuation.py"
 
 [[contracts]]
@@ -92,8 +95,27 @@ membership, topological order, or that terminal_output equals the configured \
 primary output; those graph-aware guarantees belong to execute_graph. Direct \
 construction instead rejects contradictions that its recorded evidence can \
 establish on its own."""
-date = "2026-08-05"
+date = "2026-08-11"
 check = "uv run --locked pytest tests/results/test_graph_runs.py tests/results/test_json_boundaries.py tests/results/test_node_outcomes.py tests/results/test_failure_diagnostics.py tests/execution/test_interpreter.py"
+
+[[contracts]]
+title = "Failure evidence retention"
+statement = """
+NodeError snapshots capture exception tracebacks. Metadata extraction records \
+any dropped keys in metadata under the dropped_metadata marker with a reason \
+class rather than silently omitting them. InputResolutionError and \
+NodeExecutionError carry failure_class=infrastructure. When execute_graph is \
+interrupted by CancelledError or KeyboardInterrupt, the in-flight node is \
+cancelled, remaining nodes are blocked, a partial GraphRunResult is built, \
+and GraphRunInterruptedError carries that result before the interruption \
+re-raises."""
+rationale = """
+Downstream attribution, reflection, and accounting need stable failure \
+evidence at graph-run boundaries. Silent metadata narrowing or interruption \
+without partial results would destroy inspectable state at the volume and \
+cost sensitivity of calibration workloads."""
+date = "2026-08-11"
+check = "uv run --locked pytest tests/results/test_failure_diagnostics.py tests/execution/test_interpreter.py tests/execution/test_input_resolution.py tests/execution/test_node_invocation.py"
 
 [[contracts]]
 title = "Callers own orchestration and domain behavior"

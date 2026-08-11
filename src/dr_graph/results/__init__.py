@@ -6,6 +6,7 @@ from dr_graph.results.graph_runs import (
 )
 from dr_graph.results.node_outcomes import (
     NodeOutcome,
+    NodeOutcomeSource,
     NodeOutcomeStatus,
     NodeOutput,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "GraphRunStatus",
     "NodeError",
     "NodeOutcome",
+    "NodeOutcomeSource",
     "NodeOutcomeStatus",
     "NodeOutput",
     "TerminalError",

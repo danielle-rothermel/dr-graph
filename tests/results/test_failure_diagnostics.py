@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import textwrap
 from collections import UserDict
 from collections.abc import Mapping
 from types import MappingProxyType
@@ -18,6 +19,11 @@ from dr_graph import (
     NodeError,
     NodeOutput,
     execute_graph,
+)
+from dr_graph.results.failure_diagnostics import (
+    DECLARED_ERROR_TYPE_KEY,
+    DROPPED_METADATA_KEY,
+    MetadataDropReason,
 )
 from tests.support import PermanentFailureError, _graph, _node
 
@@ -62,10 +68,12 @@ def test_fully_conforming_exception_matches_protocol() -> None:
 
 def test_node_error_reads_protocol_attributes() -> None:
     error = NodeError.from_exception(FullyClassifiedError())
-    assert error.error_type == "example.Boom"
+    assert error.error_type.endswith(".FullyClassifiedError")
     assert error.failure_class == "transient"
+    assert error.traceback == ""
     assert error.metadata == {
         "attempt": 1,
+        DECLARED_ERROR_TYPE_KEY: "example.Boom",
         "underlying_exception_type": "builtins.ValueError",
     }
 
@@ -84,6 +92,7 @@ def test_unclassified_exception_gets_defaults() -> None:
     assert error.error_type == "builtins.ValueError"
     assert error.failure_class is None
     assert error.metadata == {}
+    assert error.traceback == ""
 
 
 @pytest.mark.parametrize(
@@ -100,7 +109,14 @@ def test_broken_diagnostic_attribute_does_not_escape_execution(
     outcome = result.outcomes["direct"]
     assert result.status is GraphRunStatus.ERROR
     assert outcome.error is not None
-    if broken_attribute != "metadata":
+    if broken_attribute == "metadata":
+        assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
+            {
+                "key": "*",
+                "reason": MetadataDropReason.METADATA_ACCESSOR_FAILED,
+            },
+        ]
+    else:
         assert outcome.error.metadata.get("provider") == "test"
     if broken_attribute != "underlying":
         assert outcome.error.metadata.get("underlying_exception_type") == (
@@ -155,7 +171,10 @@ def test_node_error_preserves_mapping_metadata(
 
     snapshot = NodeError.from_exception(error)
 
-    expected = {"attempt": 1}
+    expected: dict[str, Any] = {
+        "attempt": 1,
+        DECLARED_ERROR_TYPE_KEY: "example.Boom",
+    }
     if underlying is not None:
         expected["underlying_exception_type"] = "builtins.ValueError"
     assert snapshot.metadata == expected
@@ -206,6 +225,7 @@ def test_node_error_underlying_cycle_terminates(
         "message": "outer",
         "failure_class": None,
         "metadata": {"underlying_exception_type": underlying_type},
+        "traceback": "",
     }
 
 
@@ -224,6 +244,9 @@ def test_invalid_exception_metadata_does_not_escape_execution() -> None:
     assert outcome.error.metadata == {
         "provider": "test",
         "underlying_exception_type": "builtins.ValueError",
+        DROPPED_METADATA_KEY: [
+            {"key": "opaque", "reason": MetadataDropReason.STRICT_JSON},
+        ],
     }
 
 
@@ -239,9 +262,12 @@ def test_node_error_preserves_wrapped_step_failure_diagnostics() -> None:
 
     outcome = result.outcomes["direct"]
     assert outcome.error is not None
-    assert outcome.error.error_type == "builtins.RuntimeError"
+    assert outcome.error.error_type.endswith(".StepFailure")
     assert outcome.error.failure_class == "permanent"
-    assert outcome.error.metadata == {"provider": "test"}
+    assert outcome.error.metadata == {
+        "provider": "test",
+        DECLARED_ERROR_TYPE_KEY: "builtins.RuntimeError",
+    }
     assert result.terminal_error is not None
     assert result.terminal_error.error == outcome.error
 
@@ -263,3 +289,92 @@ def test_node_error_preserves_chained_underlying_exception_type() -> None:
     assert outcome.error.metadata["underlying_exception_type"] == (
         "builtins.ValueError"
     )
+
+
+def test_node_error_merges_existing_and_new_dropped_metadata() -> None:
+    class MetadataWithDropsError(Exception):
+        def __init__(self) -> None:
+            super().__init__("callback failed")
+            self.metadata = {
+                "provider": "test",
+                "opaque": object(),
+                DROPPED_METADATA_KEY: [
+                    {"key": "prior", "reason": MetadataDropReason.STRICT_JSON},
+                ],
+            }
+
+    result = _execute_raising_node(MetadataWithDropsError())
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata["provider"] == "test"
+    assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
+        {"key": "prior", "reason": MetadataDropReason.STRICT_JSON},
+        {"key": "opaque", "reason": MetadataDropReason.STRICT_JSON},
+    ]
+
+
+class _BrokenMappingMetadataError(Exception):
+    def __init__(self, metadata: Mapping[str, Any]) -> None:
+        super().__init__("callback failed")
+        self.metadata = metadata
+
+
+def test_node_error_records_broken_mapping_items() -> None:
+    class BrokenItemsMapping(UserDict):
+        def items(self) -> Any:
+            raise RuntimeError("items failed")
+
+    result = _execute_raising_node(
+        _BrokenMappingMetadataError(
+            BrokenItemsMapping({"provider": "test"}),
+        )
+    )
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
+        {
+            "key": "items()",
+            "reason": MetadataDropReason.METADATA_ACCESSOR_FAILED,
+        },
+    ]
+
+
+def test_node_error_records_broken_dropped_metadata_membership_probe() -> None:
+    class BrokenContainsMapping(UserDict):
+        def __contains__(self, key: object) -> bool:
+            if key == DROPPED_METADATA_KEY:
+                raise RuntimeError("contains failed")
+            return super().__contains__(key)
+
+    result = _execute_raising_node(
+        _BrokenMappingMetadataError(
+            BrokenContainsMapping({"provider": "test"}),
+        )
+    )
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata["provider"] == "test"
+
+
+def test_node_error_captures_traceback_from_active_exception() -> None:
+    script = textwrap.dedent(
+        """
+        from dr_graph import NodeError
+        try:
+            raise ValueError("with traceback")
+        except ValueError as error:
+            print(NodeError.from_exception(error).traceback)
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ValueError: with traceback" in result.stdout

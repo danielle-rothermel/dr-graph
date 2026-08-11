@@ -69,6 +69,7 @@ def test_missing_task_input_becomes_error_outcome() -> None:
         f"{InputResolutionError.__module__}."
         f"{InputResolutionError.__qualname__}"
     )
+    assert outcome.error.failure_class == "infrastructure"
     assert result.terminal_error is not None
     assert result.terminal_error.error == outcome.error
 
