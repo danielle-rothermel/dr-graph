@@ -68,7 +68,8 @@ part_of = ["graph definition"]
 name = "graph config"
 definition = """
 A concrete, fully bound and validated graph whose complete static structure \
-determines its identity. It contains node configs and identifies exactly one \
+determines its identity. dr-graph owns graph definition, graph config, and \
+graph-config identity. It contains node configs and identifies exactly one \
 terminal node."""
 exported_symbols = ["GraphConfig"]
 is_a = ["graph"]
@@ -161,15 +162,17 @@ name = "graph hash"
 definition = """
 The deterministic, untruncated identity hash of a graph config's complete \
 versioned identity document. It identifies static executable configuration, \
-not any particular graph run."""
+not any particular graph run. Callers may nest it as the inner or root layer \
+of a larger canonical identity."""
 exported_symbols = ["graph_hash"]
 
 [[terms]]
 name = "graph run"
 definition = """
-The deterministic interpretation of one graph config with graph external \
-inputs, optional completed node outputs, and a node runner callback. It \
-produces one node outcome per node and one aggregate graph run result."""
+execute_graph is the sole serial entry point for interpreting one graph config \
+with graph external inputs, optional completed node outputs, and a node runner \
+callback. It produces one node outcome per node and one aggregate graph run \
+result."""
 exported_symbols = ["execute_graph", "resolve_node_inputs"]
 
 [[terms]]
@@ -224,17 +227,9 @@ part_of = ["graph run result"]
 name = "graph run result"
 definition = """
 The coherent strict-JSON result of one graph run, containing its graph hash, \
-external inputs, per-node outcomes, execution order, terminal state, optional \
-evidence references, and provenance."""
+external inputs, per-node outcomes, execution order, and terminal state. \
+Per-leg evidence flows through NodeOutput.metadata on successful outcomes."""
 exported_symbols = ["GraphRunResult", "GraphRunStatus"]
-
-[[terms]]
-name = "graph run provenance"
-definition = """
-Caller-supplied strict-JSON metadata describing how a graph run was produced. \
-It accompanies the graph run result but does not participate in graph-config \
-identity or node outcomes."""
-part_of = ["graph run result"]
 
 [[terms]]
 name = "graph assembly"
@@ -259,8 +254,9 @@ definition = """
 Structured descriptions of node and terminal failures recognized or carried \
 by graph results. Result-carried snapshots use strict JSON, retain exception \
 tracebacks, record metadata extraction losses in-band, and preserve stable \
-classification and metadata when available while leaving fuller attempt \
-evidence in caller-owned systems."""
+classification and metadata when available. Per-leg success evidence flows \
+through NodeOutput.metadata; fuller attempt evidence stays in caller-owned \
+systems."""
 exported_symbols = ["ClassifiedFailure", "NodeError", "TerminalError"]
 part_of = ["graph run result"]
 

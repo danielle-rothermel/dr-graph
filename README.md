@@ -16,10 +16,11 @@ structure is separate from caller-supplied node behavior and optimization.
 - **[Configuration](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/configuration)**
   models concrete variable values and validates the resulting graph.
 - **[Identity](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/identity)**
-  gives every complete graph configuration a stable, versioned identity.
+  owns graph definition, configuration, and identity; every complete graph
+  configuration gets a versioned hash that callers may nest in larger keys.
 - **[Execution](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/execution)**
-  interprets a graph in topological order while delegating node behavior to
-  the caller.
+  runs `execute_graph` as the sole serial entry point, delegating node
+  behavior to the caller through `RunNode`.
 - **[Results](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/results)**
   models per-node and graph-level outcomes, including reuse of completed node
   outputs when continuing execution.
@@ -98,9 +99,12 @@ def validate_graph_external_inputs(
 
 ## Identity
 
-Every static configuration field participates in a versioned canonical
-identity document. `dr-serialize` turns that document into the graph's full
-SHA-256 hash.
+dr-graph owns graph definition, graph configuration, and graph-config
+identity. Every static configuration field participates in a versioned
+canonical identity document. `dr-serialize` turns that document into the
+graph's full SHA-256 hash. Callers may embed `graph_hash` as the inner or
+root layer of a larger canonical key. Scheduling, recovery, membership, and
+durable orchestration stay outside dr-graph.
 
 ```python
 GRAPH_CONFIG_IDENTITY_SCHEMA = "dr_graph.graph_config"
@@ -117,9 +121,12 @@ def graph_hash(graph: GraphConfig) -> str: ...
 
 ## Execution
 
-Execution owns graph traversal and dependency wiring while the caller owns
-node behavior. A dependency-closed set of completed node outputs may be
-supplied to continue execution.
+`execute_graph` is the sole graph interpretation entry point. It owns graph
+traversal and dependency wiring while the caller owns node behavior through
+`RunNode`, the only behavior delegation seam. New graph shapes need no new
+executor code. Intra-graph execution is serial; cross-run concurrency is
+caller- or platform-owned. A dependency-closed set of completed node outputs
+may be supplied to continue execution.
 
 ```python
 type RunNode = Callable[
@@ -188,8 +195,6 @@ class GraphRunResult(BaseModel):
     terminal_node_id: str
     terminal_output: Jsonable
     terminal_error: TerminalError | None
-    attempt_evidence_refs: tuple[str, ...]
-    provenance: dict[str, Jsonable]
 ```
 
 Successful nodes invoked in the current run carry `outcome_source=fresh`.
@@ -200,7 +205,8 @@ recorded as successful outcomes with `outcome_source=reused`.
 
 Node-behavior failures become `NodeOutcome` errors rather than escaping the
 graph run. dr-graph captures a strict-JSON `NodeError` snapshot from each
-exception and leaves fuller attempt evidence in caller-owned systems.
+exception. Per-leg success evidence flows through `NodeOutput.metadata`; fuller
+attempt evidence stays in caller-owned systems.
 
 ```python
 class NodeError(BaseModel):
@@ -241,8 +247,8 @@ class GraphRunInterruptedError(GraphExecutionError):
     partial_result: GraphRunResult
 ```
 
-`GraphRunResult.provenance` remains caller-supplied run-level metadata.
-`NodeOutcome.outcome_source` is the orthogonal per-node fresh-vs-reused axis.
+`NodeOutcome.outcome_source` records whether each successful outcome came from
+this run (`fresh`) or from caller-supplied completed outputs (`reused`).
 
 ## Flow optimization
 

@@ -34,7 +34,9 @@ statement = """
 A graph hash is the full lowercase SHA-256 identity hash of the versioned \
 graph config identity document; its payload contains every ordered static \
 graph-config field, including concrete graph-variable values, and contains no \
-runtime inputs, node outputs, provenance, or orchestration state."""
+runtime inputs, node outputs, provenance, or orchestration state. Graph-config \
+identity is intended for nesting as the inner or root layer of caller-composed \
+canonical keys."""
 rationale = """
 The identifier must change whenever executable static configuration changes \
 and remain stable across runs of that same configuration. Truncation, omitted \
@@ -44,16 +46,35 @@ date = "2026-08-05"
 check = "uv run pytest tests/identity"
 
 [[contracts]]
+title = "Graph config ownership"
+statement = """
+dr-graph owns graph definition, graph config, and graph-config identity; \
+graph_hash is the canonical identity for static executable configuration and \
+is suitable as the inner or root layer when callers compose a larger canonical \
+key. dr-graph does not own scheduling, recovery, membership, or durable \
+orchestration."""
+rationale = """
+The positive ownership boundary complements the caller-owned orchestration \
+split. Writing it down keeps each layer's owner explicit when callers nest \
+graph identity inside larger keys."""
+date = "2026-08-11"
+check = "uv run pytest tests/identity"
+
+[[contracts]]
 title = "Deterministic caller-supplied interpretation"
 statement = """
-A graph run visits nodes in deterministic topological order, resolves each \
-runnable node's declared inputs, and invokes the caller-supplied node runner \
-once for each runnable node that is not completed; failed dependencies block \
-their downstream nodes."""
+execute_graph is the sole graph interpretation entry point. A graph run visits \
+nodes serially in deterministic topological order, resolves each runnable \
+node's declared inputs, and invokes the caller-supplied node runner once for \
+each runnable node that is not completed; failed dependencies block their \
+downstream nodes. Cross-run concurrency is caller- or platform-owned; dr-graph \
+exposes no batch, async, or parallel graph entry point."""
 rationale = """
 The graph layer owns traversal and wiring while the caller owns node behavior. \
-A stable order makes equivalent runs inspectable and reproducible without \
-teaching the graph layer any domain-specific dispatch."""
+A stable serial order makes equivalent runs inspectable and reproducible \
+without teaching the graph layer any domain-specific dispatch. Topological \
+layering computes ready nodes and then flattens them deliberately; intra-graph \
+execution stays serial by design."""
 date = "2026-08-05"
 check = "uv run pytest tests/execution"
 
@@ -70,7 +91,7 @@ Partial validation after execution begins could mix trusted new work with an \
 invalid continuation state. Dependency closure ensures every reused output has \
 the reused prerequisites needed to make that state coherent. Recording \
 outcome_source=reused makes reuse recoverable for accounting without conflating \
-outcome state with provenance."""
+fresh/reused state with run history."""
 date = "2026-08-11"
 check = "uv run pytest tests/results/test_continuation.py"
 
@@ -92,9 +113,9 @@ lossy coercion; rejecting invalid inputs before execution prevents side effects 
 that cannot produce a valid result. Without a GraphConfig, the result model \
 cannot prove graph \
 membership, topological order, or that terminal_output equals the configured \
-primary output; those graph-aware guarantees belong to execute_graph. Direct \
-construction instead rejects contradictions that its recorded evidence can \
-establish on its own."""
+primary output; those graph-aware guarantees belong exclusively to execute_graph \
+and build_graph_run_result. Direct construction instead rejects contradictions \
+that its recorded evidence can establish on its own."""
 date = "2026-08-11"
 check = "uv run --locked pytest tests/results/test_graph_runs.py tests/results/test_json_boundaries.py tests/results/test_node_outcomes.py tests/results/test_failure_diagnostics.py tests/execution/test_interpreter.py"
 
@@ -121,13 +142,14 @@ check = "uv run --locked pytest tests/results/test_failure_diagnostics.py tests/
 title = "Callers own orchestration and domain behavior"
 statement = """
 Callers own node-type behavior, scheduling, retries, persistence, durability, \
-provider and domain semantics, provenance content, and attempt-evidence \
-storage; dr-graph owns graph structure, identity, deterministic traversal, \
-input resolution, result shapes, and references to caller-owned evidence."""
+provider and domain semantics, attempt-evidence storage, and run-level \
+association; per-leg evidence flows through NodeOutput.metadata. dr-graph owns \
+graph structure, identity, deterministic traversal, input resolution, and result \
+shapes."""
 rationale = """
 Embedding orchestration or domain policy in the graph package would couple a \
 general graph contract to one execution platform. The injected node runner \
-and reference-only evidence boundary keep those responsibilities explicit."""
+and per-leg metadata channel keep those responsibilities explicit."""
 date = "2026-08-05"
 
 [[contracts]]
