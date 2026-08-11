@@ -13,10 +13,12 @@ from dr_graph.core.json_values import strict_json_object, strict_json_value
 DROPPED_METADATA_KEY = "dropped_metadata"
 DECLARED_ERROR_TYPE_KEY = "declared_error_type"
 
-DROP_REASON_NON_STRING_KEY = "non_string_key"
-DROP_REASON_STRICT_JSON = "strict_json"
-DROP_REASON_METADATA_ACCESSOR_FAILED = "metadata_accessor_failed"
-DROP_REASON_DECLARED_ERROR_TYPE_CONFLICT = "declared_error_type_conflict"
+
+class MetadataDropReason(StrEnum):
+    NON_STRING_KEY = "non_string_key"
+    STRICT_JSON = "strict_json"
+    METADATA_ACCESSOR_FAILED = "metadata_accessor_failed"
+    DECLARED_ERROR_TYPE_CONFLICT = "declared_error_type_conflict"
 
 
 @runtime_checkable
@@ -133,7 +135,7 @@ def _record_dropped_metadata(
     metadata: dict[str, Jsonable],
     *,
     key: Jsonable,
-    reason: str,
+    reason: MetadataDropReason,
 ) -> None:
     dropped = metadata.setdefault(DROPPED_METADATA_KEY, [])
     if not isinstance(dropped, list):
@@ -152,7 +154,7 @@ def _apply_declared_error_type(
         _record_dropped_metadata(
             metadata,
             key=DECLARED_ERROR_TYPE_KEY,
-            reason=DROP_REASON_DECLARED_ERROR_TYPE_CONFLICT,
+            reason=MetadataDropReason.DECLARED_ERROR_TYPE_CONFLICT,
         )
         return
     metadata[DECLARED_ERROR_TYPE_KEY] = declared_error_type
@@ -203,7 +205,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
         _record_dropped_metadata(
             result,
             key="*",
-            reason=DROP_REASON_METADATA_ACCESSOR_FAILED,
+            reason=MetadataDropReason.METADATA_ACCESSOR_FAILED,
         )
     elif isinstance(metadata_attr, Mapping):
         existing_dropped, invalid_existing = _read_existing_dropped_metadata(
@@ -213,7 +215,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
             _record_dropped_metadata(
                 result,
                 key=DROPPED_METADATA_KEY,
-                reason=DROP_REASON_STRICT_JSON,
+                reason=MetadataDropReason.STRICT_JSON,
             )
         for key, value in metadata_attr.items():
             if key == DROPPED_METADATA_KEY:
@@ -226,7 +228,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
                 _record_dropped_metadata(
                     result,
                     key=dropped_key,
-                    reason=DROP_REASON_NON_STRING_KEY,
+                    reason=MetadataDropReason.NON_STRING_KEY,
                 )
                 continue
             try:
@@ -235,7 +237,7 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
                 _record_dropped_metadata(
                     result,
                     key=key,
-                    reason=DROP_REASON_STRICT_JSON,
+                    reason=MetadataDropReason.STRICT_JSON,
                 )
         _merge_dropped_metadata_lists(result, existing_dropped)
 

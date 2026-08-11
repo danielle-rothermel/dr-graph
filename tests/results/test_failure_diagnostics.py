@@ -22,9 +22,8 @@ from dr_graph import (
 )
 from dr_graph.results.failure_diagnostics import (
     DECLARED_ERROR_TYPE_KEY,
-    DROP_REASON_METADATA_ACCESSOR_FAILED,
-    DROP_REASON_STRICT_JSON,
     DROPPED_METADATA_KEY,
+    MetadataDropReason,
 )
 from tests.support import PermanentFailureError, _graph, _node
 
@@ -112,7 +111,10 @@ def test_broken_diagnostic_attribute_does_not_escape_execution(
     assert outcome.error is not None
     if broken_attribute == "metadata":
         assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
-            {"key": "*", "reason": DROP_REASON_METADATA_ACCESSOR_FAILED},
+            {
+                "key": "*",
+                "reason": MetadataDropReason.METADATA_ACCESSOR_FAILED,
+            },
         ]
     else:
         assert outcome.error.metadata.get("provider") == "test"
@@ -243,7 +245,7 @@ def test_invalid_exception_metadata_does_not_escape_execution() -> None:
         "provider": "test",
         "underlying_exception_type": "builtins.ValueError",
         DROPPED_METADATA_KEY: [
-            {"key": "opaque", "reason": DROP_REASON_STRICT_JSON},
+            {"key": "opaque", "reason": MetadataDropReason.STRICT_JSON},
         ],
     }
 
@@ -297,7 +299,7 @@ def test_node_error_merges_existing_and_new_dropped_metadata() -> None:
                 "provider": "test",
                 "opaque": object(),
                 DROPPED_METADATA_KEY: [
-                    {"key": "prior", "reason": DROP_REASON_STRICT_JSON},
+                    {"key": "prior", "reason": MetadataDropReason.STRICT_JSON},
                 ],
             }
 
@@ -307,8 +309,8 @@ def test_node_error_merges_existing_and_new_dropped_metadata() -> None:
     assert outcome.error is not None
     assert outcome.error.metadata["provider"] == "test"
     assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
-        {"key": "prior", "reason": DROP_REASON_STRICT_JSON},
-        {"key": "opaque", "reason": DROP_REASON_STRICT_JSON},
+        {"key": "prior", "reason": MetadataDropReason.STRICT_JSON},
+        {"key": "opaque", "reason": MetadataDropReason.STRICT_JSON},
     ]
 
 
