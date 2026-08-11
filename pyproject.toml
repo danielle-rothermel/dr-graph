@@ -1,6 +1,6 @@
 [project]
 name = "dr-graph"
-version = "0.1.2"
+version = "0.1.3"
 description = "Hashable computation graphs plus exact min-cost flow and separable transport."
 readme = "README.md"
 license = "MIT"
