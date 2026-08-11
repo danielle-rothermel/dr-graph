@@ -359,6 +359,38 @@ def test_node_error_records_broken_dropped_metadata_membership_probe() -> None:
     assert outcome.error.metadata["provider"] == "test"
 
 
+def test_golden_persisted_metadata_literals() -> None:
+    class GoldenLiteralsError(Exception):
+        def __init__(self) -> None:
+            super().__init__("boom")
+            self.error_type = "example.Boom"
+            self.metadata = {
+                "opaque": object(),
+                1: "non-string key",
+            }
+
+    dumped = NodeError.from_exception(GoldenLiteralsError()).model_dump()
+
+    assert dumped["metadata"] == {
+        "declared_error_type": "example.Boom",
+        "dropped_metadata": [
+            {"key": "opaque", "reason": "strict_json"},
+            {"key": 1, "reason": "non_string_key"},
+        ],
+    }
+
+
+def test_golden_persisted_diagnostics_constants() -> None:
+    assert DROPPED_METADATA_KEY == "dropped_metadata"
+    assert DECLARED_ERROR_TYPE_KEY == "declared_error_type"
+    assert {reason.name: reason.value for reason in MetadataDropReason} == {
+        "NON_STRING_KEY": "non_string_key",
+        "STRICT_JSON": "strict_json",
+        "METADATA_ACCESSOR_FAILED": "metadata_accessor_failed",
+        "DECLARED_ERROR_TYPE_CONFLICT": "declared_error_type_conflict",
+    }
+
+
 def test_node_error_captures_traceback_from_active_exception() -> None:
     script = textwrap.dedent(
         """

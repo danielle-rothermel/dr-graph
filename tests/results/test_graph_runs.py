@@ -55,6 +55,49 @@ def test_result_json_dump_is_persistable_shape() -> None:
     }
 
 
+def test_reused_outcome_json_dump_is_persistable_shape() -> None:
+    graph = _graph(
+        _node("source"),
+        _node("terminal", input_sources={"value": "source"}),
+        terminal_node_id="terminal",
+    )
+
+    result = execute_graph(
+        graph=graph,
+        inputs={},
+        run_node=lambda node, inputs: _output(inputs["value"]),
+        completed={"source": {"values": {"output": "prior"}}},
+    )
+
+    assert result.model_dump(mode="json") == {
+        "graph_hash": graph_hash(graph),
+        "external_inputs": {},
+        "status": "success",
+        "outcomes": {
+            "source": {
+                "node_id": "source",
+                "status": "success",
+                "output": {"values": {"output": "prior"}, "metadata": {}},
+                "error": None,
+                "blocked_by": [],
+                "outcome_source": "reused",
+            },
+            "terminal": {
+                "node_id": "terminal",
+                "status": "success",
+                "output": {"values": {"output": "prior"}, "metadata": {}},
+                "error": None,
+                "blocked_by": [],
+                "outcome_source": "fresh",
+            },
+        },
+        "execution_order": ["source", "terminal"],
+        "terminal_node_id": "terminal",
+        "terminal_output": "prior",
+        "terminal_error": None,
+    }
+
+
 def test_error_outcome_json_dump_is_persistable_shape() -> None:
     graph = _graph(_node("direct"), terminal_node_id="direct")
 
