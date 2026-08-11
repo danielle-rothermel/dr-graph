@@ -226,3 +226,66 @@ def test_keyboard_interrupt_preserves_partial_graph_run_result() -> None:
     assert decoder.status is NodeOutcomeStatus.CANCELLED
     assert decoder.outcome_source is NodeOutcomeSource.FRESH
     assert partial.execution_order == ("encoder", "decoder")
+
+
+def test_keyboard_interrupt_preserves_unvisited_completed_node() -> None:
+    graph = _graph(
+        _node("zeta"),
+        _node("delta", input_sources={"z": "zeta"}),
+        _node("beta"),
+        _node("gamma", input_sources={"v": "beta"}),
+        _node(
+            "epsilon",
+            input_sources={"g": "gamma", "d": "delta"},
+            output_field="output",
+        ),
+        terminal_node_id="epsilon",
+    )
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "zeta":
+            raise KeyboardInterrupt
+        return _output("unreachable")
+
+    with pytest.raises(GraphRunInterruptedError) as exc_info:
+        execute_graph(
+            graph=graph,
+            inputs={},
+            run_node=run_node,
+            completed={
+                "beta": {"values": {"output": "reused beta"}},
+                "gamma": {"values": {"output": "reused gamma"}},
+            },
+        )
+
+    partial = exc_info.value.partial_result
+    gamma = partial.outcomes["gamma"]
+    beta = partial.outcomes["beta"]
+    assert gamma.status is NodeOutcomeStatus.SUCCESS
+    assert gamma.outcome_source is NodeOutcomeSource.REUSED
+    assert beta.status is NodeOutcomeStatus.SUCCESS
+    assert beta.outcome_source is NodeOutcomeSource.REUSED
+
+
+def test_interrupt_blocked_by_failed_dependencies() -> None:
+    graph = _graph(
+        _node("source"),
+        _node("middle", input_sources={"value": "source"}),
+        _node("terminal", input_sources={"value": "middle"}),
+        terminal_node_id="terminal",
+    )
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "source":
+            return _output("ok")
+        if node.node_id == "middle":
+            raise KeyboardInterrupt
+        return _output("unreachable")
+
+    with pytest.raises(GraphRunInterruptedError) as exc_info:
+        execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    partial = exc_info.value.partial_result
+    assert partial.outcomes["middle"].status is NodeOutcomeStatus.CANCELLED
+    assert partial.outcomes["terminal"].status is NodeOutcomeStatus.BLOCKED
+    assert partial.outcomes["terminal"].blocked_by == ("middle",)

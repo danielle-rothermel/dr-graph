@@ -105,6 +105,11 @@ class NodeOutcome(BaseModel):
 
     @model_validator(mode="after")
     def validate_outcome(self) -> NodeOutcome:  # noqa: PLR0912
+        if (
+            self.outcome_source is NodeOutcomeSource.REUSED
+            and self.status is not NodeOutcomeStatus.SUCCESS
+        ):
+            raise ValueError("reused node outcomes require success")
         if self.status is NodeOutcomeStatus.SUCCESS:
             if self.output is None:
                 raise ValueError("successful node outcomes require output")

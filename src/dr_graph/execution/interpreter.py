@@ -80,6 +80,7 @@ def execute_graph(
             _block_remaining_nodes(
                 ordered_nodes=ordered_nodes,
                 cancelled_node_id=node.node_id,
+                completed_outputs=completed_outputs,
                 outcomes=outcomes,
                 execution_order=execution_order,
             )
@@ -133,6 +134,7 @@ def _block_remaining_nodes(
     *,
     ordered_nodes: list[NodeConfig],
     cancelled_node_id: str,
+    completed_outputs: dict[str, NodeOutput],
     outcomes: dict[str, NodeOutcome],
     execution_order: list[str],
 ) -> None:
@@ -141,7 +143,17 @@ def _block_remaining_nodes(
         if remaining.node_id in seen:
             continue
         execution_order.append(remaining.node_id)
+        if remaining.node_id in completed_outputs:
+            outcomes[remaining.node_id] = NodeOutcome.success(
+                node_id=remaining.node_id,
+                output=completed_outputs[remaining.node_id],
+                outcome_source=NodeOutcomeSource.REUSED,
+            )
+            continue
+        blocked_by = _blocked_dependencies(remaining, outcomes)
+        if not blocked_by:
+            blocked_by = (cancelled_node_id,)
         outcomes[remaining.node_id] = NodeOutcome.blocked(
             node_id=remaining.node_id,
-            blocked_by=(cancelled_node_id,),
+            blocked_by=blocked_by,
         )

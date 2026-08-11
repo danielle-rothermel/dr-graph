@@ -314,6 +314,51 @@ def test_node_error_merges_existing_and_new_dropped_metadata() -> None:
     ]
 
 
+class _BrokenMappingMetadataError(Exception):
+    def __init__(self, metadata: Mapping[str, Any]) -> None:
+        super().__init__("callback failed")
+        self.metadata = metadata
+
+
+def test_node_error_records_broken_mapping_items() -> None:
+    class BrokenItemsMapping(UserDict):
+        def items(self) -> Any:
+            raise RuntimeError("items failed")
+
+    result = _execute_raising_node(
+        _BrokenMappingMetadataError(
+            BrokenItemsMapping({"provider": "test"}),
+        )
+    )
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata[DROPPED_METADATA_KEY] == [
+        {
+            "key": "items()",
+            "reason": MetadataDropReason.METADATA_ACCESSOR_FAILED,
+        },
+    ]
+
+
+def test_node_error_records_broken_dropped_metadata_membership_probe() -> None:
+    class BrokenContainsMapping(UserDict):
+        def __contains__(self, key: object) -> bool:
+            if key == DROPPED_METADATA_KEY:
+                raise RuntimeError("contains failed")
+            return super().__contains__(key)
+
+    result = _execute_raising_node(
+        _BrokenMappingMetadataError(
+            BrokenContainsMapping({"provider": "test"}),
+        )
+    )
+
+    outcome = result.outcomes["direct"]
+    assert outcome.error is not None
+    assert outcome.error.metadata["provider"] == "test"
+
+
 def test_node_error_captures_traceback_from_active_exception() -> None:
     script = textwrap.dedent(
         """

@@ -184,15 +184,52 @@ def _merge_dropped_metadata_lists(
 def _read_existing_dropped_metadata(
     metadata_attr: Mapping[Any, Any],
 ) -> tuple[list[Jsonable], bool]:
-    if DROPPED_METADATA_KEY not in metadata_attr:
+    has_key = _mapping_has_key(metadata_attr, DROPPED_METADATA_KEY)
+    if has_key is None:
+        return [], True
+    if not has_key:
         return [], False
+    value, lookup_failed = _mapping_get_item(
+        metadata_attr,
+        DROPPED_METADATA_KEY,
+    )
+    if lookup_failed:
+        return [], True
     try:
-        validated = strict_json_value(metadata_attr[DROPPED_METADATA_KEY])
+        validated = strict_json_value(value)
     except StrictJsonError:
         return [], True
     if isinstance(validated, list):
         return validated, False
     return [], True
+
+
+def _mapping_has_key(mapping: Mapping[Any, Any], key: str) -> bool | None:
+    try:
+        return key in mapping
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return None
+
+
+def _mapping_get_item(
+    mapping: Mapping[Any, Any],
+    key: str,
+) -> tuple[object, bool]:
+    try:
+        return mapping[key], False
+    except KeyError:
+        return _MISSING_ATTRIBUTE, False
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return _MISSING_ATTRIBUTE, True
+
+
+def _iter_mapping_items(
+    mapping: Mapping[Any, Any],
+) -> tuple[list[tuple[Any, Any]], bool]:
+    try:
+        return list(mapping.items()), False
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return [], True
 
 
 def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
@@ -215,7 +252,14 @@ def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
                 key=DROPPED_METADATA_KEY,
                 reason=MetadataDropReason.STRICT_JSON,
             )
-        for key, value in metadata_attr.items():
+        items, iteration_failed = _iter_mapping_items(metadata_attr)
+        if iteration_failed:
+            _record_dropped_metadata(
+                result,
+                key="items()",
+                reason=MetadataDropReason.METADATA_ACCESSOR_FAILED,
+            )
+        for key, value in items:
             if key == DROPPED_METADATA_KEY:
                 continue
             if not isinstance(key, str):

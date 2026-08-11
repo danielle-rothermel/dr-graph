@@ -84,6 +84,15 @@ def _node_error() -> NodeError:
             },
             "cancelled node outcomes cannot include blocked_by",
         ),
+        (
+            {
+                "node_id": "n",
+                "status": NodeOutcomeStatus.ERROR,
+                "error": _node_error(),
+                "outcome_source": NodeOutcomeSource.REUSED,
+            },
+            "reused node outcomes require success",
+        ),
         *[
             pytest.param(kwargs, match, id=case_id)
             for case_id, kwargs, match in failure_state_cases()
