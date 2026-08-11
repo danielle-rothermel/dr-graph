@@ -8,9 +8,11 @@ from dr_serialize import StrictJsonError
 
 from dr_graph import (
     FieldRole,
+    GraphRunInterruptedError,
     GraphRunStatus,
     NodeConfig,
     NodeFieldSpec,
+    NodeOutcomeSource,
     NodeOutcomeStatus,
     NodeOutput,
     execute_graph,
@@ -76,6 +78,7 @@ def test_node_exception_captures_persistable_error() -> None:
     assert outcome.error is not None
     assert outcome.error.failure_class == "permanent"
     assert outcome.error.metadata == {"provider": "test"}
+    assert outcome.error.traceback
     assert "exception" not in dumped["outcomes"]["direct"]
 
 
@@ -190,3 +193,36 @@ def test_external_inputs_are_snapshotted_before_node_invocation() -> None:
 
     assert inputs == {"payload": {"items": ["mutated"]}}
     assert result.external_inputs == {"payload": {"items": []}}
+
+
+def test_keyboard_interrupt_preserves_partial_graph_run_result() -> None:
+    graph = _graph(
+        _node(
+            "encoder",
+            input_sources={"prompt": "task.prompt"},
+            output_field="description",
+        ),
+        _node("decoder", input_sources={"description": "encoder"}),
+        terminal_node_id="decoder",
+    )
+
+    def run_node(node: NodeConfig, inputs: Mapping[str, Any]) -> NodeOutput:
+        if node.node_id == "encoder":
+            return _output("prior description", field="description")
+        raise KeyboardInterrupt
+
+    with pytest.raises(GraphRunInterruptedError) as exc_info:
+        execute_graph(
+            graph=graph,
+            inputs={"prompt": "write f"},
+            run_node=run_node,
+        )
+
+    partial = exc_info.value.partial_result
+    assert partial.status is GraphRunStatus.CANCELLED
+    encoder = partial.outcomes["encoder"]
+    decoder = partial.outcomes["decoder"]
+    assert encoder.outcome_source is NodeOutcomeSource.FRESH
+    assert decoder.status is NodeOutcomeStatus.CANCELLED
+    assert decoder.outcome_source is NodeOutcomeSource.FRESH
+    assert partial.execution_order == ("encoder", "decoder")

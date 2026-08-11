@@ -9,6 +9,7 @@ from dr_graph import (
     CompletedNodeError,
     GraphRunStatus,
     NodeConfig,
+    NodeOutcomeSource,
     NodeOutcomeStatus,
     NodeOutput,
     execute_graph,
@@ -44,7 +45,11 @@ def test_completed_nodes_are_skipped_and_feed_input_sources() -> None:
     assert invoked == ["decoder"]
     assert result.status is GraphRunStatus.SUCCESS
     assert result.terminal_output == "new(prior description)"
-    assert result.outcomes["encoder"].status is NodeOutcomeStatus.SUCCESS
+    encoder_outcome = result.outcomes["encoder"]
+    decoder_outcome = result.outcomes["decoder"]
+    assert encoder_outcome.status is NodeOutcomeStatus.SUCCESS
+    assert encoder_outcome.outcome_source is NodeOutcomeSource.REUSED
+    assert decoder_outcome.outcome_source is NodeOutcomeSource.FRESH
     assert result.execution_order == ("encoder", "decoder")
 
 

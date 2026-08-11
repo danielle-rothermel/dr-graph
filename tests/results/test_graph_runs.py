@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Never
 
 import pytest
 
 from dr_graph import (
+    GraphRunInterruptedError,
     GraphRunResult,
     GraphRunStatus,
+    NodeConfig,
     NodeError,
     NodeOutcome,
     NodeOutcomeStatus,
+    NodeOutput,
     TerminalError,
     execute_graph,
     graph_hash,
@@ -42,6 +45,7 @@ def test_result_json_dump_is_persistable_shape() -> None:
                 "output": {"values": {"output": "ok"}, "metadata": {}},
                 "error": None,
                 "blocked_by": [],
+                "outcome_source": "fresh",
             }
         },
         "execution_order": ["direct"],
@@ -64,7 +68,12 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
 
     outcome = result.outcomes["direct"]
     assert outcome.error is not None
-    assert result.model_dump(mode="json") == {
+    dumped = result.model_dump(mode="json")
+    assert dumped["outcomes"]["direct"]["error"]["traceback"]
+    dumped["outcomes"]["direct"]["error"]["traceback"] = ""
+    assert dumped["terminal_error"]["error"]["traceback"]
+    dumped["terminal_error"]["error"]["traceback"] = ""
+    assert dumped == {
         "graph_hash": graph_hash(graph),
         "external_inputs": {},
         "status": "error",
@@ -81,8 +90,10 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
                     "message": "boom",
                     "failure_class": None,
                     "metadata": {},
+                    "traceback": "",
                 },
                 "blocked_by": [],
+                "outcome_source": "fresh",
             }
         },
         "execution_order": ["direct"],
@@ -98,6 +109,7 @@ def test_error_outcome_json_dump_is_persistable_shape() -> None:
                 "message": "boom",
                 "failure_class": None,
                 "metadata": {},
+                "traceback": "",
             },
             "blocked_by": [],
         },
@@ -119,7 +131,10 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
         run_node=lambda node, inputs: _raise(RuntimeError("encoder failed")),
     )
 
-    assert result.model_dump(mode="json") == {
+    dumped = result.model_dump(mode="json")
+    assert dumped["outcomes"]["encoder"]["error"]["traceback"]
+    dumped["outcomes"]["encoder"]["error"]["traceback"] = ""
+    assert dumped == {
         "graph_hash": graph_hash(graph),
         "external_inputs": {"prompt": "write f"},
         "status": "blocked",
@@ -136,8 +151,10 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
                     "message": "encoder failed",
                     "failure_class": None,
                     "metadata": {},
+                    "traceback": "",
                 },
                 "blocked_by": [],
+                "outcome_source": "fresh",
             },
             "decoder": {
                 "node_id": "decoder",
@@ -145,6 +162,7 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
                 "output": None,
                 "error": None,
                 "blocked_by": ["encoder"],
+                "outcome_source": "fresh",
             },
         },
         "execution_order": ["encoder", "decoder"],
@@ -155,6 +173,47 @@ def test_blocked_outcome_json_dump_is_persistable_shape() -> None:
             "status": "blocked",
             "error": None,
             "blocked_by": ["encoder"],
+        },
+        "attempt_evidence_refs": [],
+        "provenance": {},
+    }
+
+
+def test_cancelled_outcome_json_dump_is_persistable_shape() -> None:
+    graph = _graph(_node("direct"), terminal_node_id="direct")
+
+    def run_node(
+        node: NodeConfig,
+        inputs: Mapping[str, Any],
+    ) -> NodeOutput:
+        raise KeyboardInterrupt
+
+    with pytest.raises(GraphRunInterruptedError) as exc_info:
+        execute_graph(graph=graph, inputs={}, run_node=run_node)
+
+    result = exc_info.value.partial_result
+    assert result.model_dump(mode="json") == {
+        "graph_hash": graph_hash(graph),
+        "external_inputs": {},
+        "status": "cancelled",
+        "outcomes": {
+            "direct": {
+                "node_id": "direct",
+                "status": "cancelled",
+                "output": None,
+                "error": None,
+                "blocked_by": [],
+                "outcome_source": "fresh",
+            }
+        },
+        "execution_order": ["direct"],
+        "terminal_node_id": "direct",
+        "terminal_output": None,
+        "terminal_error": {
+            "node_id": "direct",
+            "status": "cancelled",
+            "error": None,
+            "blocked_by": [],
         },
         "attempt_evidence_refs": [],
         "provenance": {},
@@ -292,7 +351,10 @@ def test_terminal_error_must_match_terminal_outcome() -> None:
 
 
 def test_terminal_error_rejects_success_status() -> None:
-    with pytest.raises(ValueError, match="must be error or blocked"):
+    with pytest.raises(
+        ValueError,
+        match="must be error, blocked, or cancelled",
+    ):
         TerminalError(
             node_id="direct",
             status=NodeOutcomeStatus.SUCCESS,
@@ -396,6 +458,11 @@ def _terminal_error(
                 ),
             },
             "must be blocked for blocked graph runs",
+        ),
+        (
+            GraphRunStatus.CANCELLED,
+            {},
+            "require terminal_error",
         ),
     ],
 )

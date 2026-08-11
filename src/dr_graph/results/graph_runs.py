@@ -29,6 +29,7 @@ class GraphRunStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
 
 
 class TerminalError(BaseModel):
@@ -61,7 +62,19 @@ class TerminalError(BaseModel):
                     "blocked terminal outcomes cannot include error"
                 )
             return self
-        raise ValueError("terminal error status must be error or blocked")
+        if self.status is NodeOutcomeStatus.CANCELLED:
+            if self.error is not None:
+                raise ValueError(
+                    "cancelled terminal outcomes cannot include error"
+                )
+            if self.blocked_by:
+                raise ValueError(
+                    "cancelled terminal outcomes cannot include blocked_by"
+                )
+            return self
+        raise ValueError(
+            "terminal error status must be error, blocked, or cancelled"
+        )
 
 
 class GraphRunResult(BaseModel):
@@ -127,6 +140,13 @@ def _validate_terminal_fields(result: GraphRunResult) -> None:
         if result.terminal_error.status is not NodeOutcomeStatus.ERROR:
             raise ValueError(
                 "terminal_error status must be error for error graph runs"
+            )
+        return
+    if result.status is GraphRunStatus.CANCELLED:
+        if result.terminal_error.status is not NodeOutcomeStatus.CANCELLED:
+            raise ValueError(
+                "terminal_error status must be cancelled "
+                "for cancelled graph runs"
             )
         return
     if result.terminal_error.status is not NodeOutcomeStatus.BLOCKED:
@@ -211,11 +231,13 @@ def _graph_status(
     *,
     terminal: NodeOutcome,
 ) -> GraphRunStatus:
-    if terminal.status is not NodeOutcomeStatus.SUCCESS:
-        if terminal.status is NodeOutcomeStatus.BLOCKED:
-            return GraphRunStatus.BLOCKED
-        return GraphRunStatus.ERROR
-    return GraphRunStatus.SUCCESS
+    if terminal.status is NodeOutcomeStatus.SUCCESS:
+        return GraphRunStatus.SUCCESS
+    if terminal.status is NodeOutcomeStatus.BLOCKED:
+        return GraphRunStatus.BLOCKED
+    if terminal.status is NodeOutcomeStatus.CANCELLED:
+        return GraphRunStatus.CANCELLED
+    return GraphRunStatus.ERROR
 
 
 def _terminal_error_from_outcome(terminal: NodeOutcome) -> TerminalError:

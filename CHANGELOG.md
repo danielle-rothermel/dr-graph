@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `NodeError` now captures exception tracebacks and records metadata extraction
+  losses in `metadata["dropped_metadata"]` instead of dropping them silently.
+- `NodeError.error_type` is always the real exception type; caller-declared
+  labels move to `metadata["declared_error_type"]`.
+- dr-graph infrastructure errors (`InputResolutionError`, `NodeExecutionError`)
+  carry `failure_class="infrastructure"`.
+- `NodeOutcome` gains `outcome_source` (`fresh` / `reused`) to distinguish
+  nodes invoked in the current run from completed outputs reused at start.
+- Cancellation (`asyncio.CancelledError`, `KeyboardInterrupt`) records partial
+  graph-run evidence on `GraphRunInterruptedError.partial_result` before
+  re-raising.
+- `NodeOutcomeStatus.CANCELLED` and `GraphRunStatus.CANCELLED` represent an
+  interrupted in-flight node.
+
 ## [0.1.2] - 2026-08-06
 
 ### Added

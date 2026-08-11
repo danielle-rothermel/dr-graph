@@ -193,9 +193,16 @@ part_of = ["graph run"]
 name = "node outcome"
 definition = """
 One node's terminal state in a graph run: successful with a node output, \
-failed with diagnostics, or blocked by unsuccessful dependencies. Exactly \
-one of those evidence shapes accompanies the state."""
-exported_symbols = ["NodeOutcome", "NodeOutcomeStatus"]
+failed with diagnostics, blocked by unsuccessful dependencies, or cancelled \
+when execution is interrupted mid-node. Exactly one evidence shape \
+accompanies non-cancelled states. Successful outcomes also record whether \
+the output came from this run (fresh) or from caller-supplied completed \
+outputs (reused)."""
+exported_symbols = [
+  "NodeOutcome",
+  "NodeOutcomeSource",
+  "NodeOutcomeStatus",
+]
 part_of = ["graph run result"]
 
 [[terms]]
@@ -250,11 +257,22 @@ is_a = ["graph assembly"]
 name = "graph failure diagnostics"
 definition = """
 Structured descriptions of node and terminal failures recognized or carried \
-by graph results. Result-carried snapshots use strict JSON and retain stable \
+by graph results. Result-carried snapshots use strict JSON, retain exception \
+tracebacks, record metadata extraction losses in-band, and preserve stable \
 classification and metadata when available while leaving fuller attempt \
 evidence in caller-owned systems."""
 exported_symbols = ["ClassifiedFailure", "NodeError", "TerminalError"]
 part_of = ["graph run result"]
+
+[[terms]]
+name = "graph run interruption"
+definition = """
+An execution interruption such as cancellation or keyboard interrupt that \
+marks the in-flight node cancelled, blocks remaining nodes, attaches the \
+partial graph run result to GraphRunInterruptedError, and then re-raises the \
+interruption."""
+exported_symbols = ["GraphRunInterruptedError"]
+part_of = ["graph run"]
 
 [[terms]]
 name = "graph error"

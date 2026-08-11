@@ -23,6 +23,14 @@ class NodeOutcomeStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
+
+
+class NodeOutcomeSource(StrEnum):
+    """Whether a successful node outcome came from this run or reuse."""
+
+    FRESH = "fresh"
+    REUSED = "reused"
 
 
 class NodeOutput(BaseModel):
@@ -45,13 +53,21 @@ class NodeOutcome(BaseModel):
     output: NodeOutput | None = None
     error: NodeError | None = None
     blocked_by: tuple[StrictStr, ...] = ()
+    outcome_source: NodeOutcomeSource = NodeOutcomeSource.FRESH
 
     @classmethod
-    def success(cls, *, node_id: str, output: NodeOutput) -> NodeOutcome:
+    def success(
+        cls,
+        *,
+        node_id: str,
+        output: NodeOutput,
+        outcome_source: NodeOutcomeSource = NodeOutcomeSource.FRESH,
+    ) -> NodeOutcome:
         return cls(
             node_id=node_id,
             status=NodeOutcomeStatus.SUCCESS,
             output=output,
+            outcome_source=outcome_source,
         )
 
     @classmethod
@@ -80,8 +96,15 @@ class NodeOutcome(BaseModel):
             blocked_by=blocked_by,
         )
 
+    @classmethod
+    def cancelled(cls, *, node_id: str) -> NodeOutcome:
+        return cls(
+            node_id=node_id,
+            status=NodeOutcomeStatus.CANCELLED,
+        )
+
     @model_validator(mode="after")
-    def validate_outcome(self) -> NodeOutcome:
+    def validate_outcome(self) -> NodeOutcome:  # noqa: PLR0912
         if self.status is NodeOutcomeStatus.SUCCESS:
             if self.output is None:
                 raise ValueError("successful node outcomes require output")
@@ -102,6 +125,20 @@ class NodeOutcome(BaseModel):
             if self.blocked_by:
                 raise ValueError(
                     "error node outcomes cannot include blocked_by"
+                )
+            return self
+        if self.status is NodeOutcomeStatus.CANCELLED:
+            if self.output is not None:
+                raise ValueError(
+                    "cancelled node outcomes cannot include output"
+                )
+            if self.error is not None:
+                raise ValueError(
+                    "cancelled node outcomes cannot include error"
+                )
+            if self.blocked_by:
+                raise ValueError(
+                    "cancelled node outcomes cannot include blocked_by"
                 )
             return self
         if not self.blocked_by:

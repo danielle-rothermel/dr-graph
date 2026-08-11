@@ -21,6 +21,7 @@ from dr_graph.core.input_sources import (
     NodeInputSourceKind,
     NodeInputSourceRef,
 )
+from dr_graph.core.interruption import GraphRunInterruptedError
 from dr_graph.definitions import GraphDefinition, NodeDefinition
 from dr_graph.execution import RunNode, execute_graph, resolve_node_inputs
 from dr_graph.identity import (
@@ -36,6 +37,7 @@ from dr_graph.results import (
     GraphRunStatus,
     NodeError,
     NodeOutcome,
+    NodeOutcomeSource,
     NodeOutcomeStatus,
     NodeOutput,
     TerminalError,
@@ -50,6 +52,7 @@ __all__ = [
     "GraphConfig",
     "GraphDefinition",
     "GraphExecutionError",
+    "GraphRunInterruptedError",
     "GraphRunResult",
     "GraphRunStatus",
     "GraphValidationError",
@@ -62,6 +65,7 @@ __all__ = [
     "NodeInputSourceKind",
     "NodeInputSourceRef",
     "NodeOutcome",
+    "NodeOutcomeSource",
     "NodeOutcomeStatus",
     "NodeOutput",
     "RunNode",

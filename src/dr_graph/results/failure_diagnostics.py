@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
@@ -9,6 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 
 from dr_graph.core.json_values import strict_json_object, strict_json_value
 
+DROPPED_METADATA_KEY = "dropped_metadata"
+DECLARED_ERROR_TYPE_KEY = "declared_error_type"
+
+DROP_REASON_NON_STRING_KEY = "non_string_key"
+DROP_REASON_STRICT_JSON = "strict_json"
+DROP_REASON_METADATA_ACCESSOR_FAILED = "metadata_accessor_failed"
+DROP_REASON_DECLARED_ERROR_TYPE_CONFLICT = "declared_error_type_conflict"
+
 
 @runtime_checkable
 class ClassifiedFailure(Protocol):
@@ -16,7 +25,9 @@ class ClassifiedFailure(Protocol):
 
     The extractor consults each attribute independently, so nonconforming
     exceptions may still provide a subset. Failure-class values are owned by
-    the raising layer.
+    the raising layer. A string ``error_type`` attribute is treated as a
+    caller-declared label and is persisted in metadata, not as
+    ``NodeError.error_type``.
     """
 
     failure_class: str | None
@@ -37,6 +48,7 @@ class NodeError(BaseModel):
     message: StrictStr
     failure_class: StrictStr | None = None
     metadata: dict[str, Jsonable] = Field(default_factory=dict)
+    traceback: StrictStr = ""
 
     @field_validator("metadata", mode="before")
     @classmethod
@@ -45,11 +57,14 @@ class NodeError(BaseModel):
 
     @classmethod
     def from_exception(cls, error: BaseException) -> NodeError:
+        metadata = _exception_metadata(error)
+        _apply_declared_error_type(error, metadata)
         return cls(
             error_type=_exception_error_type(error),
             message=_exception_message(error),
             failure_class=_exception_failure_class(error),
-            metadata=_exception_metadata(error),
+            metadata=metadata,
+            traceback=_exception_traceback(error),
         )
 
 
@@ -78,10 +93,7 @@ def _exception_failure_class(error: BaseException) -> str | None:
 
 
 def _exception_error_type(error: BaseException) -> str:
-    error_type = _exception_attribute(error, "error_type")
-    if isinstance(error_type, str):
-        return error_type
-    return f"{type(error).__module__}.{type(error).__qualname__}"
+    return _exception_type_name(error)
 
 
 def _exception_message(error: BaseException) -> str:
@@ -93,6 +105,14 @@ def _exception_message(error: BaseException) -> str:
 
 def _exception_type_name(error: BaseException) -> str:
     return f"{type(error).__module__}.{type(error).__qualname__}"
+
+
+def _exception_traceback(error: BaseException) -> str:
+    if error.__traceback__ is None:
+        return ""
+    return "".join(
+        traceback.format_exception(type(error), error, error.__traceback__)
+    )
 
 
 def _root_exception(error: BaseException) -> BaseException:
@@ -109,17 +129,76 @@ def _root_exception(error: BaseException) -> BaseException:
         current = underlying
 
 
+def _record_dropped_metadata(
+    metadata: dict[str, Jsonable],
+    *,
+    key: Jsonable,
+    reason: str,
+) -> None:
+    dropped = metadata.setdefault(DROPPED_METADATA_KEY, [])
+    if not isinstance(dropped, list):
+        return
+    dropped.append({"key": key, "reason": reason})
+
+
+def _apply_declared_error_type(
+    error: BaseException,
+    metadata: dict[str, Jsonable],
+) -> None:
+    declared_error_type = _exception_attribute(error, "error_type")
+    if not isinstance(declared_error_type, str):
+        return
+    if DECLARED_ERROR_TYPE_KEY in metadata:
+        _record_dropped_metadata(
+            metadata,
+            key=DECLARED_ERROR_TYPE_KEY,
+            reason=DROP_REASON_DECLARED_ERROR_TYPE_CONFLICT,
+        )
+        return
+    metadata[DECLARED_ERROR_TYPE_KEY] = declared_error_type
+
+
+def _read_metadata(error: BaseException) -> tuple[object, bool]:
+    try:
+        metadata = getattr(error, "metadata", _MISSING_ATTRIBUTE)
+    except Exception:  # noqa: BLE001 -- diagnostics must not mask node failures
+        return _MISSING_ATTRIBUTE, True
+    if metadata is _MISSING_ATTRIBUTE:
+        return _MISSING_ATTRIBUTE, False
+    return metadata, False
+
+
 def _exception_metadata(error: BaseException) -> dict[str, Jsonable]:
-    metadata = _exception_attribute(error, "metadata")
+    metadata_attr, accessor_failed = _read_metadata(error)
     result: dict[str, Jsonable] = {}
-    if isinstance(metadata, Mapping):
-        for key, value in metadata.items():
+    if accessor_failed:
+        _record_dropped_metadata(
+            result,
+            key="*",
+            reason=DROP_REASON_METADATA_ACCESSOR_FAILED,
+        )
+    elif isinstance(metadata_attr, Mapping):
+        for key, value in metadata_attr.items():
             if not isinstance(key, str):
+                try:
+                    dropped_key = strict_json_value(key)
+                except StrictJsonError:
+                    dropped_key = str(key)
+                _record_dropped_metadata(
+                    result,
+                    key=dropped_key,
+                    reason=DROP_REASON_NON_STRING_KEY,
+                )
                 continue
             try:
                 result[key] = strict_json_value(value)
             except StrictJsonError:
-                continue
+                _record_dropped_metadata(
+                    result,
+                    key=key,
+                    reason=DROP_REASON_STRICT_JSON,
+                )
+
     underlying = _exception_attribute(error, "underlying")
     if isinstance(underlying, BaseException):
         result.setdefault(
