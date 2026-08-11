@@ -42,7 +42,8 @@ class ClassifiedFailure(Protocol):
 class NodeError(BaseModel):
     """JSON-safe graph-run error snapshot.
 
-    Fuller attempt evidence stays caller-owned.
+    Per-leg success evidence flows through NodeOutput.metadata; fuller attempt
+    evidence stays caller-owned.
     """
 
     model_config = ConfigDict(extra="forbid")

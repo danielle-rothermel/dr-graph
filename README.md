@@ -16,10 +16,11 @@ structure is separate from caller-supplied node behavior and optimization.
 - **[Configuration](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/configuration)**
   models concrete variable values and validates the resulting graph.
 - **[Identity](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/identity)**
-  gives every complete graph configuration a stable, versioned identity.
+  owns graph definition, configuration, and identity; every complete graph
+  configuration gets a versioned hash that callers may nest in larger keys.
 - **[Execution](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/execution)**
-  interprets a graph in topological order while delegating node behavior to
-  the caller.
+  runs `execute_graph` as the sole serial entry point, delegating node
+  behavior to the caller through `RunNode`.
 - **[Results](https://github.com/danielle-rothermel/dr-graph/tree/main/src/dr_graph/results)**
   models per-node and graph-level outcomes, including reuse of completed node
   outputs when continuing execution.
@@ -204,7 +205,8 @@ recorded as successful outcomes with `outcome_source=reused`.
 
 Node-behavior failures become `NodeOutcome` errors rather than escaping the
 graph run. dr-graph captures a strict-JSON `NodeError` snapshot from each
-exception and leaves fuller attempt evidence in caller-owned systems.
+exception. Per-leg success evidence flows through `NodeOutput.metadata`; fuller
+attempt evidence stays in caller-owned systems.
 
 ```python
 class NodeError(BaseModel):

@@ -169,9 +169,10 @@ exported_symbols = ["graph_hash"]
 [[terms]]
 name = "graph run"
 definition = """
-The deterministic interpretation of one graph config with graph external \
-inputs, optional completed node outputs, and a node runner callback. It \
-produces one node outcome per node and one aggregate graph run result."""
+execute_graph is the sole serial entry point for interpreting one graph config \
+with graph external inputs, optional completed node outputs, and a node runner \
+callback. It produces one node outcome per node and one aggregate graph run \
+result."""
 exported_symbols = ["execute_graph", "resolve_node_inputs"]
 
 [[terms]]
@@ -253,8 +254,9 @@ definition = """
 Structured descriptions of node and terminal failures recognized or carried \
 by graph results. Result-carried snapshots use strict JSON, retain exception \
 tracebacks, record metadata extraction losses in-band, and preserve stable \
-classification and metadata when available while leaving fuller attempt \
-evidence in caller-owned systems."""
+classification and metadata when available. Per-leg success evidence flows \
+through NodeOutput.metadata; fuller attempt evidence stays in caller-owned \
+systems."""
 exported_symbols = ["ClassifiedFailure", "NodeError", "TerminalError"]
 part_of = ["graph run result"]
 
